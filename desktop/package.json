@@ -1,0 +1,34 @@
+{
+  "name": "horizon-os-desktop",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "tauri": "tauri"
+  },
+  "dependencies": {
+    "next": "^15.0.0",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "@tauri-apps/api": "^2.0.0",
+    "@tauri-apps/cli": "^2.0.0",
+    "lucide-react": "latest",
+    "sonner": "latest",
+    "recharts": "latest",
+    "jspdf": "latest",
+    "jspdf-autotable": "latest",
+    "axios": "latest"
+  },
+  "devDependencies": {
+    "typescript": "latest",
+    "@types/node": "latest",
+    "@types/react": "latest",
+    "@types/react-dom": "latest",
+    "tailwindcss": "^4.0.0",
+    "@tailwindcss/postcss": "latest",
+    "postcss": "latest"
+  }
+}

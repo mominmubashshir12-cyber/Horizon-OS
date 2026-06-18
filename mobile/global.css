@@ -1,0 +1,7 @@
+/* global.css */
+/* Global stylesheet for NativeWind / Tailwind CSS. */
+/* These directives inject Tailwind's base resets, component classes, and utility classes. */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

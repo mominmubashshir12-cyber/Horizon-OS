@@ -1,0 +1,441 @@
+// Prisma schema for Horizon OS — defines all database models, relations, and constraints for the business operations platform.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// ─── USER ──────────────────────────────────────────────────────────────────────
+
+model User {
+  id              Int       @id @default(autoincrement())
+  username        String    @unique
+  passwordHash    String
+  fullName        String
+  role            String    @default("PERM_EMPLOYEE")
+  employmentType  String    @default("PERMANENT")
+  baseSalary      Float     @default(0)
+  workStartTime   String    @default("09:00")
+  employmentStart DateTime  @default(now())
+  employmentEnd   DateTime?
+  phone           String?
+  deviceToken     String?
+  isActive        Boolean   @default(true)
+  firmId          Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  firm                Firm               @relation(fields: [firmId], references: [id])
+  attendance          Attendance[]
+  performanceReports  PerformanceReport[] @relation("UserReports")
+  approvedReports     PerformanceReport[] @relation("ApprovedByUser")
+  toolIssuances       ToolIssuance[]
+  materialUsageLogs   MaterialUsageLog[]
+  assignedJobs        JobCard[]           @relation("AssignedToUser")
+  createdJobs         JobCard[]           @relation("CreatedByUser")
+  verifiedJobs        JobCard[]           @relation("VerifiedByUser")
+  sales               Sale[]
+  heldTools           Tool[]              @relation("CurrentHolder")
+  siteVisits          SiteVisit[]
+  quotations          Quotation[]
+  antifraudFlags      AntifraudFlag[]     @relation("FlaggedUser")
+  reviewedFlags       AntifraudFlag[]     @relation("ReviewedByUser")
+  systemAlerts        SystemAlert[]
+  syncLogs            SyncLog[]
+}
+
+// ─── FIRM ──────────────────────────────────────────────────────────────────────
+
+model Firm {
+  id        Int       @id @default(autoincrement())
+  name      String    @default("Horizon IT Solutions")
+  gstin     String?
+  address   String?
+  phone     String?
+  email     String?
+  logoUrl   String?
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  // Relations
+  users               User[]
+  attendance          Attendance[]
+  tools               Tool[]
+  toolIssuances       ToolIssuance[]
+  consumableMaterials ConsumableMaterial[]
+  materialUsageLogs   MaterialUsageLog[]
+  jobCards            JobCard[]
+  products            Product[]
+  sales               Sale[]
+  quotations          Quotation[]
+  performanceReports  PerformanceReport[]
+  antifraudFlags      AntifraudFlag[]
+  systemAlerts        SystemAlert[]
+}
+
+// ─── ATTENDANCE ────────────────────────────────────────────────────────────────
+
+model Attendance {
+  id           Int       @id @default(autoincrement())
+  userId       Int
+  date         DateTime
+  checkInTime  DateTime?
+  checkInLat   Float?
+  checkInLng   Float?
+  checkInPhoto String?
+  checkOutTime DateTime?
+  lateMinutes  Int       @default(0)
+  status       String    @default("PRESENT")
+  firmId       Int       @default(1)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@unique([userId, date])
+}
+
+// ─── PERFORMANCE REPORT ────────────────────────────────────────────────────────
+
+model PerformanceReport {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  month            Int
+  year             Int
+  totalPresent     Int       @default(0)
+  totalAbsent      Int       @default(0)
+  totalLateDays    Int       @default(0)
+  totalLateMinutes Int       @default(0)
+  jobsCompleted    Int       @default(0)
+  toolIncidents    Int       @default(0)
+  disciplineScore  Float     @default(100)
+  baseSalary       Float     @default(0)
+  deductionAmount  Float     @default(0)
+  deductionReason  String?
+  bonusAmount      Float     @default(0)
+  bonusReason      String?
+  ownerApproved    Boolean   @default(false)
+  approvedById     Int?
+  approvedAt       DateTime?
+  finalSalary      Float     @default(0)
+  firmId           Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  user       User  @relation("UserReports", fields: [userId], references: [id])
+  approvedBy User? @relation("ApprovedByUser", fields: [approvedById], references: [id])
+  firm       Firm  @relation(fields: [firmId], references: [id])
+
+  @@unique([userId, month, year])
+}
+
+// ─── TOOL ──────────────────────────────────────────────────────────────────────
+
+model Tool {
+  id              Int       @id @default(autoincrement())
+  name            String
+  toolCode        String    @unique
+  category        String
+  condition       String    @default("GOOD")
+  currentHolderId Int?
+  purchasePrice   Float     @default(0)
+  replacementCost Float     @default(0)
+  photoUrl        String?
+  notes           String?
+  isActive        Boolean   @default(true)
+  firmId          Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  currentHolder User?          @relation("CurrentHolder", fields: [currentHolderId], references: [id])
+  issuances     ToolIssuance[]
+  firm          Firm           @relation(fields: [firmId], references: [id])
+}
+
+// ─── TOOL ISSUANCE ─────────────────────────────────────────────────────────────
+
+model ToolIssuance {
+  id              Int       @id @default(autoincrement())
+  toolId          Int
+  userId          Int
+  jobCardId       Int?
+  issuedAt        DateTime  @default(now())
+  returnedAt      DateTime?
+  issuedCondition String    @default("GOOD")
+  returnCondition String?
+  penaltyAmount   Float     @default(0)
+  penaltyApproved Boolean   @default(false)
+  penaltyNote     String?
+  status          String    @default("ISSUED")
+  firmId          Int       @default(1)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  // Relations
+  tool    Tool     @relation(fields: [toolId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  jobCard JobCard? @relation(fields: [jobCardId], references: [id])
+  firm    Firm     @relation(fields: [firmId], references: [id])
+}
+
+// ─── CONSUMABLE MATERIAL ───────────────────────────────────────────────────────
+
+model ConsumableMaterial {
+  id            Int     @id @default(autoincrement())
+  name          String
+  materialCode  String  @unique
+  unit          String
+  currentStock  Float   @default(0)
+  reorderLevel  Float   @default(0)
+  purchasePrice Float   @default(0)
+  category      String?
+  shelfLocation String?
+  isActive      Boolean @default(true)
+  firmId        Int     @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  // Relations
+  usageLogs MaterialUsageLog[]
+  firm      Firm               @relation(fields: [firmId], references: [id])
+}
+
+// ─── MATERIAL USAGE LOG ────────────────────────────────────────────────────────
+
+model MaterialUsageLog {
+  id               Int       @id @default(autoincrement())
+  materialId       Int
+  userId           Int
+  jobCardId        Int?
+  quantityTaken    Float
+  quantityUsed     Float     @default(0)
+  quantityReturned Float     @default(0)
+  overuseFlag      Boolean   @default(false)
+  ownerReviewed    Boolean   @default(false)
+  takenAt          DateTime  @default(now())
+  completedAt      DateTime?
+  notes            String?
+  firmId           Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  material ConsumableMaterial @relation(fields: [materialId], references: [id])
+  user     User               @relation(fields: [userId], references: [id])
+  jobCard  JobCard?           @relation(fields: [jobCardId], references: [id])
+  firm     Firm               @relation(fields: [firmId], references: [id])
+}
+
+// ─── JOB CARD ──────────────────────────────────────────────────────────────────
+
+model JobCard {
+  id                Int       @id @default(autoincrement())
+  jobNumber         String    @unique
+  clientName        String
+  clientPhone       String?
+  siteAddress       String?
+  mapsLink          String?
+  jobType           String    @default("REPAIR")
+  equipmentNotes    String?
+  notes             String?
+  assignedToId      Int
+  scheduledDate     DateTime
+  estimatedDuration String?
+  status            String    @default("ASSIGNED")
+  arrivedAt         DateTime?
+  arrivedLat        Float?
+  arrivedLng        Float?
+  completedAt       DateTime?
+  verifiedAt        DateTime?
+  verifiedById      Int?
+  workSummary       String?
+  completionPhoto   String?
+  issuesFound       String?
+  nextVisitNeeded   Boolean   @default(false)
+  clientId          Int?
+  createdById       Int
+  firmId            Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+
+  // Relations
+  assignedTo       User              @relation("AssignedToUser", fields: [assignedToId], references: [id])
+  createdBy        User              @relation("CreatedByUser", fields: [createdById], references: [id])
+  verifiedBy       User?             @relation("VerifiedByUser", fields: [verifiedById], references: [id])
+  siteVisits       SiteVisit[]
+  toolIssuances    ToolIssuance[]
+  materialUsageLogs MaterialUsageLog[]
+  firm             Firm              @relation(fields: [firmId], references: [id])
+}
+
+// ─── SITE VISIT ────────────────────────────────────────────────────────────────
+
+model SiteVisit {
+  id         Int       @id @default(autoincrement())
+  jobCardId  Int
+  userId     Int
+  arrivedAt  DateTime  @default(now())
+  arrivedLat Float?
+  arrivedLng Float?
+  departedAt DateTime?
+  notes      String?
+  createdAt  DateTime  @default(now())
+
+  // Relations
+  jobCard JobCard @relation(fields: [jobCardId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+}
+
+// ─── PRODUCT ───────────────────────────────────────────────────────────────────
+
+model Product {
+  id              Int     @id @default(autoincrement())
+  name            String
+  sku             String  @unique
+  category        String
+  purchasePrice   Float   @default(0)
+  minSellingPrice Float   @default(0)
+  maxSellingPrice Float   @default(0)
+  customerPrice   Float   @default(0)
+  currentStock    Int     @default(0)
+  reorderLevel    Int     @default(0)
+  shelfLocation   String?
+  unit            String  @default("PCS")
+  isActive        Boolean @default(true)
+  firmId          Int     @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  // Relations
+  sales          Sale[]
+  antifraudFlags AntifraudFlag[]
+  firm           Firm            @relation(fields: [firmId], references: [id])
+}
+
+// ─── SALE ──────────────────────────────────────────────────────────────────────
+
+model Sale {
+  id                    Int       @id @default(autoincrement())
+  productId             Int
+  userId                Int
+  quantity              Int
+  unitPrice             Float
+  totalAmount           Float
+  purchasePriceSnapshot Float
+  marginAmount          Float
+  marginPercent         Float
+  clientId              Int?
+  notes                 String?
+  firmId                Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+
+  // Relations
+  product Product @relation(fields: [productId], references: [id])
+  user    User    @relation(fields: [userId], references: [id])
+  firm    Firm    @relation(fields: [firmId], references: [id])
+}
+
+// ─── ANTIFRAUD FLAG ────────────────────────────────────────────────────────────
+
+model AntifraudFlag {
+  id               Int       @id @default(autoincrement())
+  userId           Int
+  productId        Int
+  flagType         String
+  details          String?
+  consecutiveCount Int       @default(0)
+  reviewed         Boolean   @default(false)
+  reviewedById     Int?
+  reviewedAt       DateTime?
+  reviewNotes      String?
+  firmId           Int       @default(1)
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  // Relations
+  user       User     @relation("FlaggedUser", fields: [userId], references: [id])
+  product    Product  @relation(fields: [productId], references: [id])
+  reviewedBy User?    @relation("ReviewedByUser", fields: [reviewedById], references: [id])
+  firm       Firm     @relation(fields: [firmId], references: [id])
+}
+
+// ─── QUOTATION ─────────────────────────────────────────────────────────────────
+
+model Quotation {
+  id                 Int       @id @default(autoincrement())
+  quotationNumber    String    @unique
+  clientName         String
+  clientPhone        String?
+  clientAddress      String?
+  validityDays       Int       @default(30)
+  items              String
+  subtotal           Float     @default(0)
+  taxAmount          Float     @default(0)
+  grandTotal         Float     @default(0)
+  status             String    @default("DRAFT")
+  pdfUrl             String?
+  whatsappSent       Boolean   @default(false)
+  sentAt             DateTime?
+  convertedInvoiceId Int?
+  assignedToId       Int?
+  notes              String?
+  firmId             Int       @default(1)
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  // Relations
+  assignedTo User? @relation(fields: [assignedToId], references: [id])
+  firm       Firm  @relation(fields: [firmId], references: [id])
+}
+
+// ─── SYSTEM ALERT ──────────────────────────────────────────────────────────────
+
+model SystemAlert {
+  id            Int       @id @default(autoincrement())
+  type          String
+  severity      String    @default("INFO")
+  title         String
+  message       String
+  relatedEntity String?
+  relatedId     Int?
+  targetUserId  Int?
+  isRead        Boolean   @default(false)
+  isDismissed   Boolean   @default(false)
+  firmId        Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+
+  // Relations
+  targetUser User? @relation(fields: [targetUserId], references: [id])
+  firm       Firm  @relation(fields: [firmId], references: [id])
+}
+
+// ─── SYNC LOG ──────────────────────────────────────────────────────────────────
+
+model SyncLog {
+  id           Int       @id @default(autoincrement())
+  deviceId     String
+  userId       Int
+  direction    String
+  entity       String
+  entityId     Int?
+  action       String
+  payload      String?
+  syncedAt     DateTime?
+  status       String    @default("PENDING")
+  errorMessage String?
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+}

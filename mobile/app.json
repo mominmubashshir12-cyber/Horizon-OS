@@ -1,0 +1,49 @@
+{
+  "expo": {
+    "name": "Horizon OS",
+    "slug": "horizon-os-mobile",
+    "scheme": "horizon-os",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.horizonit.horizonos"
+    },
+    "android": {
+      "package": "com.horizonit.horizonos"
+    },
+    "web": {
+      "bundler": "metro"
+    },
+    "plugins": [
+      "expo-router",
+      [
+        "expo-camera",
+        {
+          "cameraPermission": "Allow Horizon OS to access your camera for scanning and capturing job photos."
+        }
+      ],
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow Horizon OS to use your location for attendance tracking."
+        }
+      ],
+      [
+        "expo-notifications",
+        {
+          "color": "#2563eb"
+        }
+      ],
+      "expo-sqlite"
+    ],
+    "experiments": {
+      "typedRoutes": true
+    },
+    "extra": {
+      "apiUrl": process.env.EXPO_PUBLIC_API_URL || "http://192.168.1.29:3001/api",
+      "wsUrl": process.env.EXPO_PUBLIC_WS_URL || "ws://192.168.1.29:3001"
+    }
+  }
+}
