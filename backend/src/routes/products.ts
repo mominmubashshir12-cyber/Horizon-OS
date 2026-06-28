@@ -6,27 +6,84 @@ import { ApiResponse, AuthenticatedRequest } from '../types';
 
 const router = Router();
 const prisma = new PrismaClient();
+import { z } from 'zod';
+import { validateBody } from '../middleware/validateBody';
+
+const createProductSchema = z.object({
+  name: z.string(),
+  sku: z.string(),
+  category: z.string().optional().nullable(),
+  minSellingPrice: z.number().optional().nullable(),
+  maxSellingPrice: z.number().optional().nullable(),
+  customerPrice: z.number().optional().nullable(),
+  purchasePrice: z.number().optional().nullable(),
+  currentStock: z.number().optional().nullable(),
+  reorderLevel: z.number().optional().nullable(),
+  unit: z.string().optional().nullable(),
+  shelfLocation: z.string().optional().nullable(),
+  isActive: z.boolean().optional().nullable(),
+});
+
+const updateProductPricesSchema = z.object({
+  minSellingPrice: z.number(),
+  maxSellingPrice: z.number(),
+  customerPrice: z.number(),
+  purchasePrice: z.number(),
+});
+
+const updateProductStockSchema = z.object({
+  newStock: z.number(),
+  reason: z.string().optional().nullable()
+});
+
+const updateProductSchema = z.object({
+  name: z.string().optional(),
+  sku: z.string().optional(),
+  category: z.string().optional().nullable(),
+  minSellingPrice: z.number().optional().nullable(),
+  maxSellingPrice: z.number().optional().nullable(),
+  customerPrice: z.number().optional().nullable(),
+  purchasePrice: z.number().optional().nullable(),
+  currentStock: z.number().optional().nullable(),
+  reorderLevel: z.number().optional().nullable(),
+  unit: z.string().optional().nullable(),
+  shelfLocation: z.string().optional().nullable(),
+  isActive: z.boolean().optional().nullable(),
+});
 
 // GET /api/products
 router.get('/', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
   try {
-    const products = await prisma.product.findMany({
-      where: { firmId: req.user!.firmId },
-      orderBy: { name: 'asc' }
-    });
-    const response: ApiResponse<typeof products> = {
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '50', 10);
+    const skip = (page - 1) * limit;
+
+    const [products, total] = await Promise.all([
+      prisma.product.findMany({
+        where: { firmId: req.user!.firmId },
+        orderBy: { name: 'asc' },
+        skip,
+        take: limit
+      }),
+      prisma.product.count({
+        where: { firmId: req.user!.firmId }
+      })
+    ]);
+
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({
       success: true,
-      data: products,
+      data: { data: products, total, page, limit, totalPages },
       message: 'Products fetched successfully'
-    };
-    res.json(response);
+    });
   } catch (error) {
     next(error);
   }
 });
 
 // POST /api/products
-router.post('/', authenticateToken, requireOwner, async (req: AuthenticatedRequest, res, next) => {
+router.post('/', authenticateToken, requireOwner, validateBody(createProductSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
     const data = req.body;
     const product = await prisma.product.create({
@@ -163,7 +220,7 @@ router.get('/stats', authenticateToken, requireOwner, async (req: AuthenticatedR
 });
 
 // PUT /api/products/:id/prices
-router.put('/:id/prices', authenticateToken, requireOwner, async (req: AuthenticatedRequest, res, next) => {
+router.put('/:id/prices', authenticateToken, requireOwner, validateBody(updateProductPricesSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const { minSellingPrice, maxSellingPrice, customerPrice, purchasePrice } = req.body;
@@ -218,7 +275,7 @@ router.put('/:id/prices', authenticateToken, requireOwner, async (req: Authentic
 });
 
 // PUT /api/products/:id/stock
-router.put('/:id/stock', authenticateToken, requireOwner, async (req: AuthenticatedRequest, res, next) => {
+router.put('/:id/stock', authenticateToken, requireOwner, validateBody(updateProductStockSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const { newStock, reason } = req.body;
@@ -263,7 +320,7 @@ router.put('/:id/stock', authenticateToken, requireOwner, async (req: Authentica
 });
 
 // PUT /api/products/:id
-router.put('/:id', authenticateToken, requireOwner, async (req: AuthenticatedRequest, res, next) => {
+router.put('/:id', authenticateToken, requireOwner, validateBody(updateProductSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const data = req.body;

@@ -112,6 +112,21 @@ router.get('/live', async (req: AuthenticatedRequest, res: Response, next: NextF
       where: { firmId, isRead: false }
     });
 
+    // 8. Today Cashflow
+    const todayIST = new Date();
+    const todayUTCStart = new Date(Date.UTC(
+      todayIST.getFullYear(), todayIST.getMonth(), todayIST.getDate(), 0, 0, 0, 0
+    ));
+    const todayUTCEnd = new Date(Date.UTC(
+      todayIST.getFullYear(), todayIST.getMonth(), todayIST.getDate(), 23, 59, 59, 999
+    ));
+    const todayCashflowTx = await prisma.cashflowTransaction.findMany({
+      where: { firmId, date: { gte: todayUTCStart, lte: todayUTCEnd } }
+    });
+    const todayIncome = todayCashflowTx.filter(t => t.type === 'INCOME').reduce((s, t) => s + t.amount, 0);
+    const todayExpense = todayCashflowTx.filter(t => t.type === 'EXPENSE').reduce((s, t) => s + t.amount, 0);
+    const todayCashflow = { todayIncome, todayExpense, netToday: todayIncome - todayExpense };
+
     const liveData = {
       todayAttendance: { present, late, absent, employees },
       activeJobs: { assigned, enRoute, arrived, inProgress },
@@ -119,7 +134,8 @@ router.get('/live', async (req: AuthenticatedRequest, res: Response, next: NextF
       lowStockAlerts: { count: lowStockItems.length, items: lowStockItems },
       pendingQuotations: { count: pendingQuotes },
       toolsOverdue: { count: overdueTools },
-      unreadAlerts: { count: unreadAlerts }
+      unreadAlerts: { count: unreadAlerts },
+      todayCashflow
     };
 
     res.json({ success: true, data: liveData, message: 'Live dashboard data fetched' });
@@ -131,19 +147,29 @@ router.get('/live', async (req: AuthenticatedRequest, res: Response, next: NextF
 // GET /api/dashboard/alerts
 router.get('/alerts', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const { type, severity, limit = 20 } = req.query;
+    const { type, severity } = req.query;
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '20', 10);
+    const skip = (page - 1) * limit;
+
     const where: any = { firmId: req.user!.firmId, isDismissed: false };
     
     if (type) where.type = String(type);
     if (severity) where.severity = String(severity);
 
-    const alerts = await prisma.systemAlert.findMany({
-      where,
-      orderBy: { createdAt: 'desc' },
-      take: parseInt(String(limit), 10)
-    });
+    const [alerts, total] = await Promise.all([
+      prisma.systemAlert.findMany({
+        where,
+        orderBy: { createdAt: 'desc' },
+        skip,
+        take: limit
+      }),
+      prisma.systemAlert.count({ where })
+    ]);
 
-    res.json({ success: true, data: alerts, message: 'Alerts fetched' });
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({ success: true, data: { data: alerts, total, page, limit, totalPages }, message: 'Alerts fetched' });
   } catch (error) {
     next(error);
   }
@@ -152,7 +178,7 @@ router.get('/alerts', async (req: AuthenticatedRequest, res: Response, next: Nex
 // PUT /api/dashboard/alerts/:id/read
 router.put('/alerts/:id/read', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const alert = await prisma.systemAlert.update({
       where: { id },
       data: { isRead: true }
@@ -166,7 +192,7 @@ router.put('/alerts/:id/read', async (req: AuthenticatedRequest, res: Response, 
 // PUT /api/dashboard/alerts/:id/dismiss
 router.put('/alerts/:id/dismiss', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const alert = await prisma.systemAlert.update({
       where: { id },
       data: { isDismissed: true }

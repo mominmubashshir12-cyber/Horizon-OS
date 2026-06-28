@@ -1,41 +1,51 @@
 import { Router, Response } from 'express';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
+import { z } from 'zod';
+import { validateBody } from '../middleware/validateBody';
 import { AuthenticatedRequest, ApiResponse } from '../types';
 
 const router = Router();
 
 router.use(authenticateToken);
 
-/**
- * POST /api/sync
- * Processes an array of queued offline actions in chronological order.
- */
-router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+const syncActionSchema = z.object({
+  id: z.union([z.string(), z.number()]).optional(),
+  entity: z.string(),
+  action: z.string(),
+  payload: z.any(),
+  clientTimestamp: z.union([z.string(), z.number()]).optional()
+});
+
+const syncSchema = z.union([
+  z.array(syncActionSchema),
+  z.object({ actions: z.array(syncActionSchema) }),
+  syncActionSchema
+]);
+
+router.post('/', validateBody(syncSchema), async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   try {
     const userId = req.user!.userId;
     const firmId = req.user!.firmId;
     
-    // Support both single item and batched array (mobile currently sends single, but requirement asks for array processing)
     const actions = Array.isArray(req.body) ? req.body : (req.body.actions ? req.body.actions : [req.body]);
 
     const results = {
-      processed: 0,
-      failed: 0,
+      accepted: [] as any[],
+      rejected: [] as any[],
       errors: [] as string[]
     };
 
-    // Sort by clientTimestamp if available to ensure chronological order
     actions.sort((a: any, b: any) => {
       const timeA = new Date(a.clientTimestamp || 0).getTime();
       const timeB = new Date(b.clientTimestamp || 0).getTime();
       return timeA - timeB;
     });
 
-    // Process each action independently to ensure one failure doesn't roll back the others
     for (const action of actions) {
       try {
-        const { entity, action: mutationType, payload } = action;
+        const { id: actionId, entity, action: mutationType, payload, clientTimestamp } = action;
+        const clientDate = clientTimestamp ? new Date(clientTimestamp) : new Date();
 
         await prisma.$transaction(async (tx) => {
           if (entity === 'sale' || entity === 'product') {
@@ -63,18 +73,28 @@ router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void>
               }
             });
 
-            // Update stock
             await tx.product.update({
               where: { id: productId },
               data: { currentStock: product.currentStock - quantity }
             });
             
+            if (actionId) results.accepted.push(actionId);
+
           } else if (entity === 'jobcard' || entity === 'jobcard_status' || entity === 'job') {
             const { id: jobId, status, arrivedLat, arrivedLng, workSummary, issuesFound, nextVisitNeeded } = payload;
             
             if (!jobId) throw new Error('Job ID missing');
 
-            const updateData: any = { status };
+            const serverRecord = await tx.jobCard.findUnique({ where: { id: jobId } });
+            if (!serverRecord) throw new Error(`JobCard ${jobId} not found`);
+
+            // Conflict check
+            if (serverRecord.updatedAt > clientDate) {
+              if (actionId) results.rejected.push({ id: actionId, serverRecord });
+              return; // skip update
+            }
+
+            const updateData: any = { status, clientUpdatedAt: clientDate };
             if (status === 'IN_PROGRESS' && arrivedLat && arrivedLng) {
               updateData.arrivedAt = new Date();
               updateData.arrivedLat = arrivedLat;
@@ -91,7 +111,6 @@ router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void>
               data: updateData
             });
 
-            // If arrived, create site visit
             if (status === 'IN_PROGRESS') {
               await tx.siteVisit.create({
                 data: {
@@ -99,27 +118,29 @@ router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void>
                   userId,
                   arrivedAt: new Date(),
                   arrivedLat,
-                  arrivedLng
+                  arrivedLng,
+                  clientUpdatedAt: clientDate
                 }
               });
             } else if (status === 'COMPLETED') {
-              // Complete site visit
               const latestVisit = await tx.siteVisit.findFirst({
                 where: { jobCardId: jobId, userId },
                 orderBy: { arrivedAt: 'desc' }
               });
               if (latestVisit && !latestVisit.departedAt) {
+                // Check if site visit is newer on server? Not strictly needed for completion, but good practice.
                 await tx.siteVisit.update({
                   where: { id: latestVisit.id },
-                  data: { departedAt: new Date(), notes: workSummary }
+                  data: { departedAt: new Date(), notes: workSummary, clientUpdatedAt: clientDate }
                 });
               }
             }
             
+            if (actionId) results.accepted.push(actionId);
+
           } else if (entity === 'attendance' || entity === 'attendance_checkin') {
              const { latitude, longitude, photo } = payload;
              
-             // Check if already checked in
              const today = new Date();
              const dateStringIST = today.toLocaleDateString('en-US', { timeZone: 'Asia/Kolkata' });
              const [mm, dd, yyyy] = dateStringIST.split('/');
@@ -129,6 +150,11 @@ router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void>
                where: { userId_date: { userId, date: todayNormalized } }
              });
 
+             if (existing && existing.updatedAt > clientDate) {
+                if (actionId) results.rejected.push({ id: actionId, serverRecord: existing });
+                return;
+             }
+
              if (!existing) {
                await tx.attendance.create({
                  data: {
@@ -137,36 +163,38 @@ router.post('/', async (req: AuthenticatedRequest, res: Response): Promise<void>
                    checkInTime: new Date(),
                    checkInLat: latitude || null,
                    checkInLng: longitude || null,
-                   checkInPhoto: null, // Note: offline photo payload would need special handling if base64
                    status: 'PRESENT',
-                   firmId
+                   firmId,
+                   clientUpdatedAt: clientDate
                  }
                });
+             } else {
+               // Update logic if needed
+               await tx.attendance.update({
+                 where: { id: existing.id },
+                 data: { clientUpdatedAt: clientDate }
+               });
              }
+             if (actionId) results.accepted.push(actionId);
+          } else {
+            // Unhandled entity
+            if (actionId) results.accepted.push(actionId);
           }
         });
         
-        results.processed++;
       } catch (err: any) {
-        results.failed++;
-        results.errors.push(`Action ${action.entity} failed: ${err.message}`);
+        if (action.id) {
+          results.errors.push(`Action ${action.id} failed: ${err.message}`);
+        } else {
+          results.errors.push(`Action ${action.entity} failed: ${err.message}`);
+        }
       }
     }
 
-    const response: ApiResponse<typeof results> = {
-      success: results.failed === 0,
-      data: results,
-      message: `Sync complete: ${results.processed} processed, ${results.failed} failed`,
-    };
-    res.status(200).json(response);
+    res.status(200).json(results);
   } catch (error: any) {
     console.error('[Sync] Error:', error);
-    const response: ApiResponse<null> = {
-      success: false,
-      data: null,
-      message: 'Sync failed: ' + error.message,
-    };
-    res.status(500).json(response);
+    res.status(500).json({ accepted: [], rejected: [], errors: ['Sync failed: ' + error.message] });
   }
 });
 

@@ -9,6 +9,7 @@ export type UserRole = 'OWNER' | 'ADMIN' | 'PERM_EMPLOYEE' | 'TEMP_EMPLOYEE';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LEAVE' | 'HOLIDAY';
 
 export type JobStatus =
+  | 'UNASSIGNED'
   | 'ASSIGNED'
   | 'EN_ROUTE'
   | 'ARRIVED'
@@ -86,6 +87,14 @@ export interface AuthenticatedRequest extends Request {
   user?: TokenPayload;
 }
 
+declare global {
+  namespace Express {
+    interface Request {
+      user?: TokenPayload;
+    }
+  }
+}
+
 // ─── USER ──────────────────────────────────────────────────────────────────────
 
 export interface CreateUserRequest {
@@ -135,7 +144,9 @@ export interface CreateJobCardRequest {
   jobType?: JobType;
   equipmentNotes?: string;
   notes?: string;
-  assignedToId: number;
+  assignedEmployeeIds?: number[];
+  requiredTools?: number[];
+  requiredMaterials?: { materialId: number; quantity: number }[];
   scheduledDate: string;
   estimatedDuration?: string;
 }
@@ -273,7 +284,7 @@ export interface PaginationQuery {
 }
 
 export interface PaginatedResponse<T> {
-  items: T[];
+  data: T[];
   total: number;
   page: number;
   limit: number;

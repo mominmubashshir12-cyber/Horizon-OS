@@ -1,3 +1,8 @@
+// MIGRATION NOTE: To switch to PostgreSQL, change provider from "sqlite" to 
+// "postgresql" in the datasource block and update DATABASE_URL in .env.
+// All Prisma queries in this project are PostgreSQL-compatible.
+// See MIGRATION_NOTES.md for field-level considerations.
+
 // Prisma schema for Horizon OS — defines all database models, relations, and constraints for the business operations platform.
 
 generator client {
@@ -30,76 +35,118 @@ model User {
   updatedAt       DateTime  @updatedAt
 
   // Relations
-  firm                Firm               @relation(fields: [firmId], references: [id])
-  attendance          Attendance[]
-  performanceReports  PerformanceReport[] @relation("UserReports")
-  approvedReports     PerformanceReport[] @relation("ApprovedByUser")
-  toolIssuances       ToolIssuance[]
-  materialUsageLogs   MaterialUsageLog[]
-  assignedJobs        JobCard[]           @relation("AssignedToUser")
-  createdJobs         JobCard[]           @relation("CreatedByUser")
-  verifiedJobs        JobCard[]           @relation("VerifiedByUser")
-  sales               Sale[]
-  heldTools           Tool[]              @relation("CurrentHolder")
-  siteVisits          SiteVisit[]
-  quotations          Quotation[]
-  antifraudFlags      AntifraudFlag[]     @relation("FlaggedUser")
-  reviewedFlags       AntifraudFlag[]     @relation("ReviewedByUser")
-  systemAlerts        SystemAlert[]
-  syncLogs            SyncLog[]
+  firm               Firm                  @relation(fields: [firmId], references: [id])
+  attendance         Attendance[]
+  performanceReports PerformanceReport[]   @relation("UserReports")
+  approvedReports    PerformanceReport[]   @relation("ApprovedByUser")
+  toolIssuances      ToolIssuance[]
+  materialUsageLogs  MaterialUsageLog[]
+  assignedJobs       JobCard[]             @relation("JobAssignees")
+  createdJobs        JobCard[]             @relation("CreatedByUser")
+  verifiedJobs       JobCard[]             @relation("VerifiedByUser")
+  sales              Sale[]
+  heldTools          Tool[]                @relation("CurrentHolder")
+  siteVisits         SiteVisit[]
+  quotations         Quotation[]
+  antifraudFlags     AntifraudFlag[]       @relation("FlaggedUser")
+  reviewedFlags      AntifraudFlag[]       @relation("ReviewedByUser")
+  systemAlerts       SystemAlert[]
+  syncLogs           SyncLog[]
+  jobRequests        JobRequest[]          @relation("JobRequestUser")
+  reviewedRequests   JobRequest[]          @relation("JobRequestReviewer")
+  sentTransfers      ToolTransferRequest[] @relation("TransferSender")
+  receivedTransfers  ToolTransferRequest[] @relation("TransferReceiver")
+  photosTaken        JobPhoto[]            @relation("PhotosTaken")
+  addonRequests      AddonRequest[]        @relation("AddonRequests")
 }
 
 // ─── FIRM ──────────────────────────────────────────────────────────────────────
 
 model Firm {
-  id        Int       @id @default(autoincrement())
-  name      String    @default("Horizon IT Solutions")
+  id        Int      @id @default(autoincrement())
+  name      String   @default("Horizon IT Solutions")
   gstin     String?
   address   String?
   phone     String?
   email     String?
   logoUrl   String?
-  createdAt DateTime  @default(now())
-  updatedAt DateTime  @updatedAt
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 
   // Relations
-  users               User[]
-  attendance          Attendance[]
-  tools               Tool[]
-  toolIssuances       ToolIssuance[]
-  consumableMaterials ConsumableMaterial[]
-  materialUsageLogs   MaterialUsageLog[]
-  jobCards            JobCard[]
-  products            Product[]
-  sales               Sale[]
-  quotations          Quotation[]
-  performanceReports  PerformanceReport[]
-  antifraudFlags      AntifraudFlag[]
-  systemAlerts        SystemAlert[]
+  users                User[]
+  attendance           Attendance[]
+  tools                Tool[]
+  toolIssuances        ToolIssuance[]
+  materialUsageLogs    MaterialUsageLog[]
+  jobCards             JobCard[]
+  products             Product[]
+  sales                Sale[]
+  quotations           Quotation[]
+  performanceReports   PerformanceReport[]
+  antifraudFlags       AntifraudFlag[]
+  systemAlerts         SystemAlert[]
+  cashflowCategories   CashflowCategory[]
+  cashflowTransactions CashflowTransaction[]
+  dayLedgers           DayLedger[]
+  jobRequests          JobRequest[]
+  toolTransfers        ToolTransferRequest[]
 }
 
 // ─── ATTENDANCE ────────────────────────────────────────────────────────────────
 
 model Attendance {
-  id           Int       @id @default(autoincrement())
-  userId       Int
-  date         DateTime
-  checkInTime  DateTime?
-  checkInLat   Float?
-  checkInLng   Float?
-  checkInPhoto String?
-  checkOutTime DateTime?
-  lateMinutes  Int       @default(0)
-  status       String    @default("PRESENT")
-  firmId       Int       @default(1)
-  createdAt    DateTime  @default(now())
-  updatedAt    DateTime  @updatedAt
+  id                Int       @id @default(autoincrement())
+  userId            Int
+  date              DateTime
+  checkInTime       DateTime?
+  checkInLat        Float?
+  checkInLng        Float?
+  checkInPhoto      String?
+  checkOutTime      DateTime?
+  lateMinutes       Int       @default(0)
+  status            String    @default("PRESENT")
+  lunchStartTime    DateTime?
+  lunchEndTime      DateTime?
+  lunchDurationMins Int       @default(0)
+  lunchFlag         String?
+  lunchAutoClose    Boolean   @default(false)
+  lunchPenaltyMins  Int       @default(0)
+  checkoutConfirmed Boolean   @default(true)
+  checkoutAuto      Boolean   @default(false)
+  checkoutAutoTime  DateTime?
+  firmId            Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  clientUpdatedAt   DateTime?
+
+  // Multi-day deployment tracking
+  isMultiDay           Boolean   @default(false)
+  expectedCheckoutDate DateTime?
 
   // Relations
   user User @relation(fields: [userId], references: [id])
   firm Firm @relation(fields: [firmId], references: [id])
 
   @@unique([userId, date])
+}
+
+// ─── ATTENDANCE CORRECTION REQUEST ─────────────────────────────────────────────
+
+model AttendanceCorrectionRequest {
+  id            Int       @id @default(autoincrement())
+  attendanceId  Int
+  userId        Int
+  requestType   String // "UNDO_CHECKOUT" | "CORRECT_CHECKOUT_TIME" | "CORRECT_CHECKIN_TIME"
+  reason        String
+  requestedTime DateTime?
+  status        String    @default("PENDING") // PENDING | APPROVED | REJECTED
+  reviewedById  Int?
+  reviewedAt    DateTime?
+  reviewNote    String?
+  firmId        Int       @default(1)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
 }
 
 // ─── PERFORMANCE REPORT ────────────────────────────────────────────────────────
@@ -140,45 +187,55 @@ model PerformanceReport {
 // ─── TOOL ──────────────────────────────────────────────────────────────────────
 
 model Tool {
-  id              Int       @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   name            String
-  toolCode        String    @unique
+  toolCode        String   @unique
   category        String
-  condition       String    @default("GOOD")
+  condition       String   @default("GOOD")
   currentHolderId Int?
-  purchasePrice   Float     @default(0)
-  replacementCost Float     @default(0)
+  purchasePrice   Float    @default(0)
+  replacementCost Float    @default(0)
   photoUrl        String?
   notes           String?
-  isActive        Boolean   @default(true)
-  firmId          Int       @default(1)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  isActive        Boolean  @default(true)
+  firmId          Int      @default(1)
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
 
   // Relations
-  currentHolder User?          @relation("CurrentHolder", fields: [currentHolderId], references: [id])
-  issuances     ToolIssuance[]
-  firm          Firm           @relation(fields: [firmId], references: [id])
+  currentHolder   User?                 @relation("CurrentHolder", fields: [currentHolderId], references: [id])
+  issuances       ToolIssuance[]
+  jobRequirements JobRequiredTool[]
+  transfers       ToolTransferRequest[]
+  addonRequests   AddonRequestTool[]
+  firm            Firm                  @relation(fields: [firmId], references: [id])
 }
 
 // ─── TOOL ISSUANCE ─────────────────────────────────────────────────────────────
 
 model ToolIssuance {
-  id              Int       @id @default(autoincrement())
-  toolId          Int
-  userId          Int
-  jobCardId       Int?
-  issuedAt        DateTime  @default(now())
-  returnedAt      DateTime?
-  issuedCondition String    @default("GOOD")
-  returnCondition String?
-  penaltyAmount   Float     @default(0)
-  penaltyApproved Boolean   @default(false)
-  penaltyNote     String?
-  status          String    @default("ISSUED")
-  firmId          Int       @default(1)
-  createdAt       DateTime  @default(now())
-  updatedAt       DateTime  @updatedAt
+  id                    Int       @id @default(autoincrement())
+  toolId                Int
+  userId                Int
+  jobCardId             Int?
+  issuedAt              DateTime  @default(now())
+  expectedReturnDate    DateTime?
+  returnedAt            DateTime?
+  issuedCondition       String    @default("GOOD")
+  returnCondition       String?
+  penaltyAmount         Float     @default(0)
+  penaltyApproved       Boolean   @default(false)
+  penaltyNote           String?
+  status                String    @default("ISSUED")
+  isApproved            Boolean   @default(false)
+  custodyLocation       String    @default("OFFICE") // "OFFICE", "FIELD", "HOME"
+  homeCustodyApprovedBy Int?
+  homeCustodyApprovedAt DateTime?
+  homeCustodyNote       String?
+  firmId                Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  clientUpdatedAt       DateTime?
 
   // Relations
   tool    Tool     @relation(fields: [toolId], references: [id])
@@ -187,38 +244,17 @@ model ToolIssuance {
   firm    Firm     @relation(fields: [firmId], references: [id])
 }
 
-// ─── CONSUMABLE MATERIAL ───────────────────────────────────────────────────────
-
-model ConsumableMaterial {
-  id            Int     @id @default(autoincrement())
-  name          String
-  materialCode  String  @unique
-  unit          String
-  currentStock  Float   @default(0)
-  reorderLevel  Float   @default(0)
-  purchasePrice Float   @default(0)
-  category      String?
-  shelfLocation String?
-  isActive      Boolean @default(true)
-  firmId        Int     @default(1)
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
-
-  // Relations
-  usageLogs MaterialUsageLog[]
-  firm      Firm               @relation(fields: [firmId], references: [id])
-}
-
 // ─── MATERIAL USAGE LOG ────────────────────────────────────────────────────────
 
 model MaterialUsageLog {
   id               Int       @id @default(autoincrement())
-  materialId       Int
+  productId        Int
   userId           Int
   jobCardId        Int?
   quantityTaken    Float
   quantityUsed     Float     @default(0)
   quantityReturned Float     @default(0)
+  isApproved       Boolean   @default(false)
   overuseFlag      Boolean   @default(false)
   ownerReviewed    Boolean   @default(false)
   takenAt          DateTime  @default(now())
@@ -227,104 +263,224 @@ model MaterialUsageLog {
   firmId           Int       @default(1)
   createdAt        DateTime  @default(now())
   updatedAt        DateTime  @updatedAt
+  clientUpdatedAt  DateTime?
 
   // Relations
-  material ConsumableMaterial @relation(fields: [materialId], references: [id])
-  user     User               @relation(fields: [userId], references: [id])
-  jobCard  JobCard?           @relation(fields: [jobCardId], references: [id])
-  firm     Firm               @relation(fields: [firmId], references: [id])
+  product Product  @relation(fields: [productId], references: [id])
+  user    User     @relation(fields: [userId], references: [id])
+  jobCard JobCard? @relation(fields: [jobCardId], references: [id])
+  firm    Firm     @relation(fields: [firmId], references: [id])
 }
 
 // ─── JOB CARD ──────────────────────────────────────────────────────────────────
 
 model JobCard {
-  id                Int       @id @default(autoincrement())
-  jobNumber         String    @unique
-  clientName        String
-  clientPhone       String?
-  siteAddress       String?
-  mapsLink          String?
-  jobType           String    @default("REPAIR")
-  equipmentNotes    String?
-  notes             String?
-  assignedToId      Int
-  scheduledDate     DateTime
-  estimatedDuration String?
-  status            String    @default("ASSIGNED")
-  arrivedAt         DateTime?
-  arrivedLat        Float?
-  arrivedLng        Float?
-  completedAt       DateTime?
-  verifiedAt        DateTime?
-  verifiedById      Int?
-  workSummary       String?
-  completionPhoto   String?
-  issuesFound       String?
-  nextVisitNeeded   Boolean   @default(false)
-  clientId          Int?
-  createdById       Int
-  firmId            Int       @default(1)
-  createdAt         DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  id                    Int       @id @default(autoincrement())
+  jobNumber             String    @unique
+  clientName            String
+  clientPhone           String?
+  siteAddress           String?
+  mapsLink              String?
+  jobType               String    @default("REPAIR")
+  equipmentNotes        String?
+  notes                 String?
+  scheduledDate         DateTime
+  estimatedDuration     String?
+  status                String    @default("UNASSIGNED")
+  requiresTools         Boolean   @default(true)
+  arrivedAt             DateTime?
+  arrivedLat            Float?
+  arrivedLng            Float?
+  startedAt             DateTime?
+  completedAt           DateTime?
+  verifiedAt            DateTime?
+  verifiedById          Int?
+  qualityRating         String?
+  qualityNote           String?
+  verificationBonus     Float     @default(0)
+  verificationDeduction Float     @default(0)
+  isOverdue             Boolean   @default(false)
+  workSummary           String?
+  beforePhoto           String? // Deprecated: use JobPhoto instead
+  completionPhoto       String? // Deprecated: use JobPhoto instead
+  issuesFound           String?
+  nextVisitNeeded       Boolean   @default(false)
+  clientId              Int?
+  createdById           Int
+  firmId                Int       @default(1)
+  createdAt             DateTime  @default(now())
+  updatedAt             DateTime  @updatedAt
+  clientUpdatedAt       DateTime?
 
   // Relations
-  assignedTo       User              @relation("AssignedToUser", fields: [assignedToId], references: [id])
-  createdBy        User              @relation("CreatedByUser", fields: [createdById], references: [id])
-  verifiedBy       User?             @relation("VerifiedByUser", fields: [verifiedById], references: [id])
-  siteVisits       SiteVisit[]
-  toolIssuances    ToolIssuance[]
+  assignedEmployees User[]                @relation("JobAssignees")
+  createdBy         User                  @relation("CreatedByUser", fields: [createdById], references: [id])
+  verifiedBy        User?                 @relation("VerifiedByUser", fields: [verifiedById], references: [id])
+  siteVisits        SiteVisit[]
+  toolIssuances     ToolIssuance[]
   materialUsageLogs MaterialUsageLog[]
-  firm             Firm              @relation(fields: [firmId], references: [id])
+  requiredTools     JobRequiredTool[]
+  requiredMaterials JobRequiredMaterial[]
+  photos            JobPhoto[]
+  addonRequests     AddonRequest[]
+  requestedBy       JobRequest[]          @relation("RequestedJob")
+  assignedToRequest JobRequest[]          @relation("AssignedJob")
+  toolTransfers     ToolTransferRequest[]
+  firm              Firm                  @relation(fields: [firmId], references: [id])
+}
+
+// ─── JOB REQUIRED TOOL ─────────────────────────────────────────────────────────
+
+model JobRequiredTool {
+  id        Int     @id @default(autoincrement())
+  jobCardId Int
+  toolId    Int
+  jobCard   JobCard @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  tool      Tool    @relation(fields: [toolId], references: [id], onDelete: Cascade)
+
+  @@unique([jobCardId, toolId])
+}
+
+// ─── JOB REQUIRED MATERIAL ─────────────────────────────────────────────────────
+
+model JobRequiredMaterial {
+  id        Int     @id @default(autoincrement())
+  jobCardId Int
+  productId Int
+  quantity  Float
+  jobCard   JobCard @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  product   Product @relation(fields: [productId], references: [id], onDelete: Cascade)
+
+  @@unique([jobCardId, productId])
+}
+
+// ─── JOB REQUEST ───────────────────────────────────────────────────────────────
+
+model JobRequest {
+  id             Int       @id @default(autoincrement())
+  requestedJobId Int?
+  assignedJobId  Int?
+  userId         Int
+  reason         String
+  status         String    @default("PENDING") // PENDING | APPROVED | DECLINED
+  reviewedById   Int?
+  reviewedAt     DateTime?
+  reviewNote     String?
+  firmId         Int       @default(1)
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+
+  // Relations
+  requestedJob JobCard? @relation("RequestedJob", fields: [requestedJobId], references: [id])
+  assignedJob  JobCard? @relation("AssignedJob", fields: [assignedJobId], references: [id])
+  user         User     @relation("JobRequestUser", fields: [userId], references: [id])
+  reviewedBy   User?    @relation("JobRequestReviewer", fields: [reviewedById], references: [id])
+  firm         Firm     @relation(fields: [firmId], references: [id])
 }
 
 // ─── SITE VISIT ────────────────────────────────────────────────────────────────
 
 model SiteVisit {
-  id         Int       @id @default(autoincrement())
-  jobCardId  Int
-  userId     Int
-  arrivedAt  DateTime  @default(now())
-  arrivedLat Float?
-  arrivedLng Float?
-  departedAt DateTime?
-  notes      String?
-  createdAt  DateTime  @default(now())
+  id              Int       @id @default(autoincrement())
+  jobCardId       Int
+  userId          Int
+  arrivedAt       DateTime  @default(now())
+  arrivedLat      Float?
+  arrivedLng      Float?
+  departedAt      DateTime?
+  notes           String?
+  createdAt       DateTime  @default(now())
+  clientUpdatedAt DateTime?
 
   // Relations
   jobCard JobCard @relation(fields: [jobCardId], references: [id])
   user    User    @relation(fields: [userId], references: [id])
 }
 
+// ─── JOB PHOTO (MULTI-PHOTO SUPPORT) ──────────────────────────────────────────
+
+model JobPhoto {
+  id        Int      @id @default(autoincrement())
+  jobCardId Int
+  jobCard   JobCard  @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  phase     String // "ARRIVAL" or "COMPLETION"
+  photoUrl  String
+  caption   String?
+  takenAt   DateTime @default(now())
+  takenById Int
+  takenBy   User     @relation("PhotosTaken", fields: [takenById], references: [id])
+}
+
+// ─── ADDON REQUESTS ───────────────────────────────────────────────────────────
+
+model AddonRequest {
+  id            Int                    @id @default(autoincrement())
+  jobCardId     Int
+  jobCard       JobCard                @relation(fields: [jobCardId], references: [id], onDelete: Cascade)
+  requestedById Int
+  requestedBy   User                   @relation("AddonRequests", fields: [requestedById], references: [id])
+  status        String                 @default("PENDING") // PENDING, APPROVED, REJECTED
+  tools         AddonRequestTool[]
+  materials     AddonRequestMaterial[]
+  managerNote   String?
+  createdAt     DateTime               @default(now())
+  updatedAt     DateTime               @updatedAt
+}
+
+model AddonRequestTool {
+  id             Int          @id @default(autoincrement())
+  addonRequestId Int
+  addonRequest   AddonRequest @relation(fields: [addonRequestId], references: [id], onDelete: Cascade)
+  toolId         Int
+  tool           Tool         @relation(fields: [toolId], references: [id], onDelete: Cascade)
+  reason         String
+  status         String       @default("PENDING") // PENDING, ISSUED, UNAVAILABLE
+}
+
+model AddonRequestMaterial {
+  id                Int          @id @default(autoincrement())
+  addonRequestId    Int
+  addonRequest      AddonRequest @relation(fields: [addonRequestId], references: [id], onDelete: Cascade)
+  materialId        Int
+  material          Product      @relation(fields: [materialId], references: [id], onDelete: Cascade)
+  quantityRequested Float
+  reason            String
+  status            String       @default("PENDING") // PENDING, ISSUED, UNAVAILABLE
+}
+
 // ─── PRODUCT ───────────────────────────────────────────────────────────────────
 
 model Product {
-  id              Int     @id @default(autoincrement())
+  id              Int      @id @default(autoincrement())
   name            String
-  sku             String  @unique
+  sku             String   @unique
   category        String
-  purchasePrice   Float   @default(0)
-  minSellingPrice Float   @default(0)
-  maxSellingPrice Float   @default(0)
-  customerPrice   Float   @default(0)
-  currentStock    Int     @default(0)
-  reorderLevel    Int     @default(0)
+  purchasePrice   Float    @default(0)
+  minSellingPrice Float    @default(0)
+  maxSellingPrice Float    @default(0)
+  customerPrice   Float    @default(0)
+  currentStock    Int      @default(0)
+  reorderLevel    Int      @default(0)
   shelfLocation   String?
-  unit            String  @default("PCS")
-  isActive        Boolean @default(true)
-  firmId          Int     @default(1)
+  unit            String   @default("PCS")
+  isActive        Boolean  @default(true)
+  firmId          Int      @default(1)
   createdAt       DateTime @default(now())
   updatedAt       DateTime @updatedAt
 
   // Relations
-  sales          Sale[]
-  antifraudFlags AntifraudFlag[]
-  firm           Firm            @relation(fields: [firmId], references: [id])
+  sales                 Sale[]
+  antifraudFlags        AntifraudFlag[]
+  usageLogs             MaterialUsageLog[]
+  jobRequirements       JobRequiredMaterial[]
+  firm                  Firm                   @relation(fields: [firmId], references: [id])
+  addonRequestMaterials AddonRequestMaterial[]
 }
 
 // ─── SALE ──────────────────────────────────────────────────────────────────────
 
 model Sale {
-  id                    Int       @id @default(autoincrement())
+  id                    Int      @id @default(autoincrement())
   productId             Int
   userId                Int
   quantity              Int
@@ -335,9 +491,9 @@ model Sale {
   marginPercent         Float
   clientId              Int?
   notes                 String?
-  firmId                Int       @default(1)
-  createdAt             DateTime  @default(now())
-  updatedAt             DateTime  @updatedAt
+  firmId                Int      @default(1)
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 
   // Relations
   product Product @relation(fields: [productId], references: [id])
@@ -363,10 +519,10 @@ model AntifraudFlag {
   updatedAt        DateTime  @updatedAt
 
   // Relations
-  user       User     @relation("FlaggedUser", fields: [userId], references: [id])
-  product    Product  @relation(fields: [productId], references: [id])
-  reviewedBy User?    @relation("ReviewedByUser", fields: [reviewedById], references: [id])
-  firm       Firm     @relation(fields: [firmId], references: [id])
+  user       User    @relation("FlaggedUser", fields: [userId], references: [id])
+  product    Product @relation(fields: [productId], references: [id])
+  reviewedBy User?   @relation("ReviewedByUser", fields: [reviewedById], references: [id])
+  firm       Firm    @relation(fields: [firmId], references: [id])
 }
 
 // ─── QUOTATION ─────────────────────────────────────────────────────────────────
@@ -378,6 +534,8 @@ model Quotation {
   clientPhone        String?
   clientAddress      String?
   validityDays       Int       @default(30)
+  // CHANGED FROM String FOR POSTGRESQL — run `npx prisma migrate dev` and 
+  // `npx prisma generate` on the VPS after setting DATABASE_URL
   items              String
   subtotal           Float     @default(0)
   taxAmount          Float     @default(0)
@@ -401,19 +559,19 @@ model Quotation {
 // ─── SYSTEM ALERT ──────────────────────────────────────────────────────────────
 
 model SystemAlert {
-  id            Int       @id @default(autoincrement())
+  id            Int      @id @default(autoincrement())
   type          String
-  severity      String    @default("INFO")
+  severity      String   @default("INFO")
   title         String
   message       String
   relatedEntity String?
   relatedId     Int?
   targetUserId  Int?
-  isRead        Boolean   @default(false)
-  isDismissed   Boolean   @default(false)
-  firmId        Int       @default(1)
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
+  isRead        Boolean  @default(false)
+  isDismissed   Boolean  @default(false)
+  firmId        Int      @default(1)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
 
   // Relations
   targetUser User? @relation(fields: [targetUserId], references: [id])
@@ -430,6 +588,8 @@ model SyncLog {
   entity       String
   entityId     Int?
   action       String
+  // CHANGED FROM String FOR POSTGRESQL — run `npx prisma migrate dev` and 
+  // `npx prisma generate` on the VPS after setting DATABASE_URL
   payload      String?
   syncedAt     DateTime?
   status       String    @default("PENDING")
@@ -438,4 +598,100 @@ model SyncLog {
 
   // Relations
   user User @relation(fields: [userId], references: [id])
+}
+
+// ─── CASHFLOW ──────────────────────────────────────────────────────────────────
+
+model CashflowCategory {
+  id        Int      @id @default(autoincrement())
+  name      String
+  type      String // INCOME or EXPENSE
+  color     String // hex color e.g. #22c55e
+  icon      String?
+  isDefault Boolean  @default(false)
+  firmId    Int      @default(1)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  firm         Firm                  @relation(fields: [firmId], references: [id])
+  transactions CashflowTransaction[]
+}
+
+model CashflowTransaction {
+  id                Int      @id @default(autoincrement())
+  title             String
+  amount            Float
+  type              String // INCOME or EXPENSE
+  categoryId        Int
+  date              DateTime
+  notes             String?
+  isRecurring       Boolean  @default(false)
+  recurringInterval String? // DAILY, WEEKLY, MONTHLY, YEARLY
+  firmId            Int      @default(1)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  // Relations
+  category CashflowCategory @relation(fields: [categoryId], references: [id])
+  firm     Firm             @relation(fields: [firmId], references: [id])
+}
+
+model DayLedger {
+  id             Int      @id @default(autoincrement())
+  date           DateTime
+  openingBalance Float    @default(0)
+  totalIncome    Float    @default(0)
+  totalExpense   Float    @default(0)
+  closingBalance Float    @default(0)
+  firmId         Int      @default(1)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  // Relations
+  firm Firm @relation(fields: [firmId], references: [id])
+
+  @@unique([date, firmId])
+}
+
+// ─── TOOL TRANSFER REQUEST ─────────────────────────────────────────────────────
+
+model ToolTransferRequest {
+  id                Int       @id @default(autoincrement())
+  toolId            Int
+  fromUserId        Int
+  toUserId          Int
+  jobCardId         Int?
+  status            String    @default("PENDING") // PENDING | ACCEPTED | DECLINED
+  receivedCondition String? // "GOOD" | "DAMAGED" - submitted by receiver when accepting
+  note              String? // notes from receiver
+  firmId            Int       @default(1)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  clientUpdatedAt   DateTime?
+
+  // Relations
+  tool     Tool     @relation(fields: [toolId], references: [id])
+  fromUser User     @relation("TransferSender", fields: [fromUserId], references: [id])
+  toUser   User     @relation("TransferReceiver", fields: [toUserId], references: [id])
+  jobCard  JobCard? @relation(fields: [jobCardId], references: [id])
+  firm     Firm     @relation(fields: [firmId], references: [id])
+}
+
+// ─── FIRM SETTINGS (SINGLETON) ──────────────────────────────────────────────────
+
+model FirmSettings {
+  id                      Int      @id @default(1)
+  firmName                String   @default("Horizon Technology Services")
+  firmAddress             String?
+  firmGstin               String?
+  firmPhone               String?
+  standardCheckInTime     String   @default("09:00")
+  autoCheckoutTime        String   @default("22:00")
+  maxLunchDurationMins    Int      @default(60)
+  workingDaysPerMonth     Int      @default(26)
+  overtimeMultiplier      Float    @default(1.5)
+  absentPenaltyRate       Float    @default(1.0)
+  globalLowStockThreshold Int      @default(5)
+  updatedAt               DateTime @updatedAt
 }

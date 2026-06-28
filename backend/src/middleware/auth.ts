@@ -3,7 +3,7 @@
 import { Response, NextFunction } from 'express';
 import jwt from 'jsonwebtoken';
 import { config } from '../config';
-import { AuthenticatedRequest, TokenPayload, ApiResponse } from '../types';
+import { TokenPayload, ApiResponse, AuthenticatedRequest } from '../types';
 
 /**
  * Express middleware that enforces JWT authentication.
@@ -41,7 +41,7 @@ export function authenticateToken(
       data: null,
       message: 'Invalid or expired token',
     };
-    res.status(403).json(response);
+    res.status(401).json(response);
     return;
   }
 }

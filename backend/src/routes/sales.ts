@@ -2,6 +2,8 @@ import { Router } from 'express';
 import { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middleware/auth';
 import { requireOwner } from '../middleware/roleGuard';
+import { z } from 'zod';
+import { validateBody } from '../middleware/validateBody';
 import { ApiResponse, AuthenticatedRequest } from '../types';
 import { checkSaleForFraud } from '../services/antifraudService';
 
@@ -22,23 +24,34 @@ router.get('/', authenticateToken, requireOwner, async (req: AuthenticatedReques
       if (endDate) where.createdAt.lte = new Date(String(endDate));
     }
     
-    const sales = await prisma.sale.findMany({
-      where,
-      select: {
-        id: true,
-        product: { select: { name: true } },
-        user: { select: { fullName: true } },
-        totalAmount: true,
-        marginAmount: true,
-        marginPercent: true,
-        createdAt: true
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '50', 10);
+    const skip = (page - 1) * limit;
+
+    const [sales, total] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          product: { select: { name: true } },
+          user: { select: { fullName: true } },
+          totalAmount: true,
+          marginAmount: true,
+          marginPercent: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.sale.count({ where })
+    ]);
     
+    const totalPages = Math.ceil(total / limit);
+
     res.json({
       success: true,
-      data: sales,
+      data: { data: sales, total, page, limit, totalPages },
       message: 'Sales fetched successfully'
     });
   } catch (error) {
@@ -58,21 +71,32 @@ router.get('/my-sales', authenticateToken, async (req: AuthenticatedRequest, res
       if (endDate) where.createdAt.lte = new Date(String(endDate));
     }
     
-    const sales = await prisma.sale.findMany({
-      where,
-      select: {
-        id: true,
-        product: { select: { name: true } },
-        user: { select: { fullName: true } },
-        totalAmount: true,
-        createdAt: true
-      },
-      orderBy: { createdAt: 'desc' }
-    });
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '50', 10);
+    const skip = (page - 1) * limit;
+
+    const [sales, total] = await Promise.all([
+      prisma.sale.findMany({
+        where,
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          product: { select: { name: true } },
+          user: { select: { fullName: true } },
+          totalAmount: true,
+          createdAt: true
+        },
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.sale.count({ where })
+    ]);
     
+    const totalPages = Math.ceil(total / limit);
+
     res.json({
       success: true,
-      data: sales,
+      data: { data: sales, total, page, limit, totalPages },
       message: 'My sales fetched successfully'
     });
   } catch (error) {
@@ -180,7 +204,15 @@ router.get('/:id', authenticateToken, requireOwner, async (req: AuthenticatedReq
 });
 
 // POST /api/sales
-router.post('/', authenticateToken, async (req: AuthenticatedRequest, res, next) => {
+const saleSchema = z.object({
+  productId: z.number(),
+  quantity: z.number(),
+  unitPrice: z.number(),
+  clientId: z.number().optional(),
+  notes: z.string().optional()
+});
+
+router.post('/', authenticateToken, validateBody(saleSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
     const { productId, quantity, unitPrice, clientId, notes } = req.body;
     

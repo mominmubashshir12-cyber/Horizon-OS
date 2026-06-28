@@ -12,6 +12,10 @@ if (!process.env.JWT_REFRESH_SECRET) {
   throw new Error('FATAL CONFIG ERROR: JWT_REFRESH_SECRET is not defined in environment variables.');
 }
 
+if (process.env.NODE_ENV === 'production' && (process.env.DATABASE_URL || '').includes('sqlite')) {
+  throw new Error("SQLite is not supported in production. Set DATABASE_URL to a PostgreSQL connection string.");
+}
+
 export const config = {
   /** Server port */
   port: parseInt(process.env.PORT || '3001', 10),

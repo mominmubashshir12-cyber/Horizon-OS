@@ -5,6 +5,8 @@ import bcrypt from 'bcryptjs';
 import { prisma } from '../lib/prisma';
 import { authenticateToken } from '../middleware/auth';
 import { requireOwner } from '../middleware/roleGuard';
+import { validateBody } from '../middleware/validateBody';
+import { z } from 'zod';
 import {
   ApiResponse,
   AuthenticatedRequest,
@@ -31,30 +33,41 @@ router.get(
     try {
       const firmId = req.user!.firmId;
 
-      const users = await prisma.user.findMany({
-        where: { firmId },
-        select: {
-          id: true,
-          username: true,
-          fullName: true,
-          role: true,
-          employmentType: true,
-          baseSalary: true,
-          workStartTime: true,
-          employmentStart: true,
-          employmentEnd: true,
-          phone: true,
-          isActive: true,
-          firmId: true,
-          createdAt: true,
-          updatedAt: true,
-        },
-        orderBy: { createdAt: 'desc' },
-      });
+      const page = parseInt(req.query.page as string || '1', 10);
+      const limit = parseInt(req.query.limit as string || '50', 10);
+      const skip = (page - 1) * limit;
 
-      const response: ApiResponse<typeof users> = {
+      const [users, total] = await Promise.all([
+        prisma.user.findMany({
+          where: { firmId },
+          select: {
+            id: true,
+            username: true,
+            fullName: true,
+            role: true,
+            employmentType: true,
+            baseSalary: true,
+            workStartTime: true,
+            employmentStart: true,
+            employmentEnd: true,
+            phone: true,
+            isActive: true,
+            firmId: true,
+            createdAt: true,
+            updatedAt: true,
+          },
+          orderBy: { createdAt: 'desc' },
+          skip,
+          take: limit,
+        }),
+        prisma.user.count({ where: { firmId } })
+      ]);
+
+      const totalPages = Math.ceil(total / limit);
+
+      const response: ApiResponse<any> = {
         success: true,
-        data: users,
+        data: { data: users, total, page, limit, totalPages },
         message: `Found ${users.length} user(s)`,
       };
 
@@ -70,6 +83,71 @@ router.get(
     }
   }
 );
+
+/**
+ * GET /api/users/peers/available
+ * 
+ * Returns a list of users in the firm who are currently checked in,
+ * NOT on a lunch break, and NOT checked out. This is used for peer-to-peer transfers.
+ */
+router.get('/peers/available', async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+  try {
+    const firmId = req.user!.firmId;
+    
+    // Get the start and end of today
+    const startOfToday = new Date();
+    startOfToday.setHours(0, 0, 0, 0);
+    const endOfToday = new Date();
+    endOfToday.setHours(23, 59, 59, 999);
+
+    // Find attendances for today that are active
+    const activeAttendances = await prisma.attendance.findMany({
+      where: {
+        firmId,
+        date: { gte: startOfToday, lte: endOfToday },
+        checkInTime: { not: null },
+        checkOutTime: null,
+      },
+      select: {
+        userId: true,
+        lunchStartTime: true,
+        lunchEndTime: true,
+      }
+    });
+
+    // Filter to exclude users on an active lunch break
+    const availableUserIds = activeAttendances
+      .filter(a => {
+        // If lunch has started but not ended, they are on break
+        if (a.lunchStartTime && !a.lunchEndTime) return false;
+        return true;
+      })
+      .map(a => a.userId);
+
+    if (availableUserIds.length === 0) {
+      res.status(200).json({ success: true, data: [], message: 'No available peers' });
+      return;
+    }
+
+    const users = await prisma.user.findMany({
+      where: {
+        id: { in: availableUserIds },
+        isActive: true,
+      },
+      select: {
+        id: true,
+        username: true,
+        fullName: true,
+        role: true,
+      }
+    });
+
+    res.status(200).json({ success: true, data: users, message: 'Available peers fetched' });
+  } catch (error) {
+    console.error('[Users] Available peers error:', error);
+    res.status(500).json({ success: false, data: null, message: 'Failed to fetch available peers' });
+  }
+});
 
 /**
  * GET /api/users/:id
@@ -145,22 +223,24 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response): Promise<voi
  * Creates a new user. Password is hashed with bcrypt before storage.
  * Restricted to OWNER / ADMIN.
  */
+const createUserSchema = z.object({
+  username: z.string(),
+  password: z.string(),
+  fullName: z.string(),
+  role: z.string().optional(),
+  employmentType: z.string().optional(),
+  baseSalary: z.number().optional(),
+  workStartTime: z.string().optional(),
+  phone: z.string().optional(),
+  firmId: z.number().optional(),
+});
 router.post(
   '/',
   requireOwner,
+  validateBody(createUserSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const body = req.body as CreateUserRequest;
-
-      if (!body.username || !body.password || !body.fullName) {
-        const response: ApiResponse<null> = {
-          success: false,
-          data: null,
-          message: 'Username, password, and fullName are required',
-        };
-        res.status(400).json(response);
-        return;
-      }
 
       // Check for duplicate username
       const existing = await prisma.user.findUnique({
@@ -233,9 +313,21 @@ router.post(
  * Updates an existing user. Restricted to OWNER / ADMIN.
  * Password changes are NOT handled here — use a dedicated endpoint.
  */
+const updateUserSchema = z.object({
+  fullName: z.string().optional(),
+  role: z.string().optional(),
+  employmentType: z.string().optional(),
+  baseSalary: z.number().optional(),
+  workStartTime: z.string().optional(),
+  phone: z.string().optional(),
+  deviceToken: z.string().optional(),
+  isActive: z.boolean().optional(),
+  employmentEnd: z.string().or(z.date()).optional(),
+});
 router.put(
   '/:id',
   requireOwner,
+  validateBody(updateUserSchema),
   async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const id = parseInt(req.params.id as string, 10);

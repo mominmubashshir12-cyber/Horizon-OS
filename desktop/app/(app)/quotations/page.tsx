@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react';
 import PageHeader from '@/components/PageHeader';
 import { useAuth } from '@/contexts/AuthContext';
 import axios from 'axios';
+import { apiGet, apiPost } from '@/services/api';
 import { jsPDF } from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { toast } from 'sonner';
@@ -98,12 +99,35 @@ export default function QuotationsPage() {
     { description: '', qty: 1, unitPrice: 0, taxPercent: 18, amount: 0 }
   ]);
 
+  const fetchQuotations = async () => {
+    try {
+      const res = await apiGet<any>('/quotations');
+      if (res.success) {
+        setQuotations(res.data.data || []);
+      }
+    } catch (error) {
+      toast.error('Failed to load quotations');
+    }
+  };
+
   useEffect(() => {
-    // Mock fetch
-    setQuotations(MOCK_QUOTATIONS);
+    fetchQuotations();
   }, []);
 
-  const formatCurrency = (val: number) => `₹${val.toLocaleString('en-IN')}`;
+  const handleConvertToJob = async (id: string) => {
+    if (!confirm('Convert this quotation to a new Job Card?')) return;
+    try {
+      const res = await apiPost(`/quotations/${id}/convert-to-job`);
+      if ((res as any).success) {
+        toast.success('Quotation converted to Job Card successfully!');
+        fetchQuotations();
+      }
+    } catch (err: any) {
+      toast.error(err.response?.data?.message || 'Failed to convert to Job Card');
+    }
+  };
+
+  const formatCurrency = (val: any) => `₹${val.toLocaleString('en-IN')}`;
   const formatDateIST = (dateStr: string) => new Date(dateStr).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata' });
 
   const stats = {
@@ -188,8 +212,10 @@ export default function QuotationsPage() {
     }
   };
 
+  const inputClasses = "input";
+
   return (
-    <div className="animate-fade-in space-y-6 pb-20">
+    <div className="flex-1 overflow-auto p-8 space-y-6">
       <PageHeader
         title="Quotations"
         subtitle="Create, send, and track client quotations"
@@ -198,36 +224,36 @@ export default function QuotationsPage() {
       />
 
       {/* Stats row */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+      <div className="grid grid-cols-4 gap-4">
         {[
-          { label: 'Total', value: stats.total, color: 'text-blue-400' },
-          { label: 'Pending', value: stats.pending, color: 'text-amber-400' },
-          { label: 'Accepted', value: stats.accepted, color: 'text-emerald-400' },
-          { label: 'Converted', value: stats.converted, color: 'text-purple-400' },
+          { label: 'Total', value: stats.total, color: 'text-white' },
+          { label: 'Pending', value: stats.pending, color: 'text-[#f59e0b]' },
+          { label: 'Accepted', value: stats.accepted, color: 'text-[#22c55e]' },
+          { label: 'Converted', value: stats.converted, color: 'text-[#0070f3]' },
         ].map((s, i) => (
-          <div key={i} className="p-4 rounded-xl border border-[#334155] bg-[#1e293b]">
-            <p className="text-sm text-[#94a3b8] mb-1">{s.label}</p>
-            <p className={`text-2xl font-bold ${s.color}`}>{s.value}</p>
+          <div key={i} className="glass-card p-6 hover:border-[#3a3a3a] transition-colors duration-200">
+            <p className="text-xs font-medium text-[#52525b] uppercase tracking-wide">{s.label}</p>
+            <p className={`mt-2 text-2xl font-semibold ${s.color}`}>{s.value}</p>
           </div>
         ))}
       </div>
 
       {/* Filter bar */}
-      <div className="flex flex-col sm:flex-row gap-4 mb-4">
+      <div className="flex gap-4">
         <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#94a3b8]" size={18} />
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-[#52525b]" size={16} />
           <input
             type="text"
             placeholder="Search by client or quotation number..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
-            className="w-full rounded-lg border border-[#334155] bg-[#0f172a] pl-10 pr-4 py-2 text-sm text-[#f8fafc] focus:border-cyan-500 focus:outline-none"
+            className={`${inputClasses} pl-10`}
           />
         </div>
         <select
           value={filterStatus}
           onChange={(e) => setFilterStatus(e.target.value)}
-          className="rounded-lg border border-[#334155] bg-[#0f172a] px-4 py-2 text-sm text-[#f8fafc] focus:border-cyan-500 focus:outline-none"
+          className={`${inputClasses} w-auto`}
         >
           <option value="ALL">All Status</option>
           <option value="DRAFT">Draft</option>
@@ -239,48 +265,50 @@ export default function QuotationsPage() {
       </div>
 
       {/* Table */}
-      <div className="overflow-x-auto rounded-xl border border-[#334155] bg-[#1e293b]">
-        <table className="w-full text-left text-sm text-[#f8fafc]">
-          <thead className="border-b border-[#334155] bg-[#0f172a]/50">
+      <div className="glass-card overflow-hidden">
+        <table className="w-full text-left text-sm text-[#a1a1aa]">
+          <thead className="bg-white/5 border-b border-white/5">
             <tr>
-              <th className="p-4 font-medium">Quotation #</th>
-              <th className="p-4 font-medium">Client Name</th>
-              <th className="p-4 font-medium">Grand Total</th>
-              <th className="p-4 font-medium">Status</th>
-              <th className="p-4 font-medium">Created Date</th>
-              <th className="p-4 font-medium">Valid Until</th>
-              <th className="p-4 font-medium">Assigned To</th>
-              <th className="p-4 font-medium text-right">Actions</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Quotation #</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Client Name</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Grand Total</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Status</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Created Date</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Valid Until</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Assigned To</th>
+              <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider text-right">Actions</th>
             </tr>
           </thead>
           <tbody>
             {filteredQuotations.map(q => (
-              <tr key={q.id} className="border-b border-[#334155] last:border-0 hover:bg-[#334155]/20">
-                <td className="p-4 font-medium">{q.quotationNumber}</td>
-                <td className="p-4">{q.clientName}</td>
-                <td className="p-4">{formatCurrency(q.grandTotal)}</td>
-                <td className="p-4">
-                  <span className={`px-2 py-1 rounded text-xs font-medium ${
-                    q.status === 'ACCEPTED' ? 'bg-emerald-500/20 text-emerald-400' :
-                    q.status === 'DRAFT' ? 'bg-slate-500/20 text-slate-400' :
-                    q.status === 'SENT' ? 'bg-blue-500/20 text-blue-400' :
-                    q.status === 'CONVERTED' ? 'bg-purple-500/20 text-purple-400' :
-                    'bg-rose-500/20 text-rose-400'
+              <tr key={q.id} className="border-b border-[#1f1f1f] hover:bg-[#1f1f1f] transition-colors duration-100">
+                <td className="px-4 py-3 text-white font-medium">{q.quotationNumber}</td>
+                <td className="px-4 py-3 text-white">{q.clientName}</td>
+                <td className="px-4 py-3">{formatCurrency(q.grandTotal)}</td>
+                <td className="px-4 py-3">
+                  <span className={`inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium ${
+                    q.status === 'ACCEPTED' ? 'bg-[#22c55e]/10 text-[#22c55e]' :
+                    q.status === 'DRAFT' ? 'bg-[#52525b]/10 text-[#a1a1aa]' :
+                    q.status === 'SENT' ? 'bg-[#0070f3]/10 text-[#0070f3]' :
+                    q.status === 'CONVERTED' ? 'bg-[#a855f7]/10 text-[#a855f7]' :
+                    'bg-[#ef4444]/10 text-[#ef4444]'
                   }`}>
                     {q.status}
                   </span>
                 </td>
-                <td className="p-4 text-[#94a3b8]">{formatDateIST(q.createdDate)}</td>
-                <td className="p-4 text-[#94a3b8]">{formatDateIST(q.validUntil)}</td>
-                <td className="p-4">{q.assignedTo}</td>
-                <td className="p-4 flex justify-end gap-2">
-                  <button onClick={() => { setSelectedQuotation(q); setIsViewModalOpen(true); }} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded" title="View"><Eye size={16} /></button>
+                <td className="px-4 py-3">{formatDateIST(q.createdDate)}</td>
+                <td className="px-4 py-3">{formatDateIST(q.validUntil)}</td>
+                <td className="px-4 py-3">{q.assignedTo}</td>
+                <td className="px-4 py-3 flex justify-end gap-2">
+                  <button onClick={() => { setSelectedQuotation(q); setIsViewModalOpen(true); }} className="text-[#a1a1aa] hover:text-[#0070f3] transition-colors" title="View"><Eye size={16} /></button>
                   {user?.role === 'OWNER' && (
                     <>
-                      <button disabled={q.status === 'CONVERTED' || q.status === 'EXPIRED'} className="p-1.5 text-amber-400 hover:bg-amber-400/10 rounded disabled:opacity-30 disabled:hover:bg-transparent" title="Edit"><Edit size={16} /></button>
-                      <button disabled={q.status !== 'DRAFT'} className="p-1.5 text-blue-400 hover:bg-blue-400/10 rounded disabled:opacity-30 disabled:hover:bg-transparent" title="Send"><Send size={16} /></button>
-                      <button disabled={q.status !== 'ACCEPTED'} className="p-1.5 text-emerald-400 hover:bg-emerald-400/10 rounded disabled:opacity-30 disabled:hover:bg-transparent" title="Convert to Sale"><CheckCircle size={16} /></button>
-                      <button disabled={q.status !== 'DRAFT'} className="p-1.5 text-rose-400 hover:bg-rose-400/10 rounded disabled:opacity-30 disabled:hover:bg-transparent" title="Delete"><Trash2 size={16} /></button>
+                      <button disabled={q.status === 'CONVERTED' || q.status === 'EXPIRED'} className="text-[#a1a1aa] hover:text-[#f59e0b] disabled:opacity-30 disabled:hover:text-[#a1a1aa] transition-colors" title="Edit"><Edit size={16} /></button>
+                      <button disabled={q.status !== 'DRAFT'} className="text-[#a1a1aa] hover:text-[#0070f3] disabled:opacity-30 disabled:hover:text-[#a1a1aa] transition-colors" title="Send"><Send size={16} /></button>
+                      {q.status === 'ACCEPTED' && (
+                        <button onClick={() => handleConvertToJob(q.id)} className="text-[#a1a1aa] hover:text-[#22c55e] transition-colors" title="Convert to Job Card"><CheckCircle size={16} /></button>
+                      )}
+                      <button disabled={q.status !== 'DRAFT'} className="text-[#a1a1aa] hover:text-[#ef4444] disabled:opacity-30 disabled:hover:text-[#a1a1aa] transition-colors" title="Delete"><Trash2 size={16} /></button>
                     </>
                   )}
                 </td>
@@ -288,7 +316,7 @@ export default function QuotationsPage() {
             ))}
             {filteredQuotations.length === 0 && (
               <tr>
-                <td colSpan={8} className="p-8 text-center text-[#94a3b8]">No quotations found</td>
+                <td colSpan={8} className="p-8 text-center text-[#52525b]">No quotations found</td>
               </tr>
             )}
           </tbody>
@@ -297,77 +325,77 @@ export default function QuotationsPage() {
 
       {/* Create Modal */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-[#1e293b] rounded-xl border border-[#334155] w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel w-full max-w-4xl max-h-[90vh] overflow-y-auto p-6">
             <div className="flex justify-between items-center mb-6">
-              <h2 className="text-xl font-bold text-white">Create Quotation</h2>
-              <button onClick={() => setIsCreateModalOpen(false)} className="text-[#94a3b8] hover:text-white"><X size={24} /></button>
+              <h2 className="text-lg font-semibold text-white">Create Quotation</h2>
+              <button onClick={() => setIsCreateModalOpen(false)} className="text-[#52525b] hover:text-white transition-colors"><X size={20} /></button>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
               <div>
-                <label className="block text-sm text-[#94a3b8] mb-1">Client Name</label>
-                <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">Client Name</label>
+                <input type="text" value={clientName} onChange={e => setClientName(e.target.value)} className={inputClasses} />
               </div>
               <div>
-                <label className="block text-sm text-[#94a3b8] mb-1">Phone</label>
-                <input type="text" value={clientPhone} onChange={e => setClientPhone(e.target.value)} className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">Phone</label>
+                <input type="text" value={clientPhone} onChange={e => setClientPhone(e.target.value)} className={inputClasses} />
               </div>
               <div className="md:col-span-2">
-                <label className="block text-sm text-[#94a3b8] mb-1">Address</label>
-                <input type="text" value={clientAddress} onChange={e => setClientAddress(e.target.value)} className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">Address</label>
+                <input type="text" value={clientAddress} onChange={e => setClientAddress(e.target.value)} className={inputClasses} />
               </div>
               <div>
-                <label className="block text-sm text-[#94a3b8] mb-1">Validity (Days)</label>
-                <input type="number" value={validityDays} onChange={e => setValidityDays(Number(e.target.value))} className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">Validity (Days)</label>
+                <input type="number" value={validityDays} onChange={e => setValidityDays(Number(e.target.value))} className={inputClasses} />
               </div>
               <div>
-                <label className="block text-sm text-[#94a3b8] mb-1">Notes</label>
-                <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white" />
+                <label className="block text-xs font-medium text-[#a1a1aa] mb-1.5">Notes</label>
+                <input type="text" value={notes} onChange={e => setNotes(e.target.value)} className={inputClasses} />
               </div>
             </div>
 
             <div className="mb-4">
-              <div className="flex justify-between items-center mb-2">
-                <h3 className="text-lg font-semibold text-white">Line Items</h3>
-                <button onClick={handleAddItem} className="text-sm bg-[#334155] hover:bg-[#475569] text-white px-3 py-1.5 rounded flex items-center gap-1">
-                  <Plus size={16} /> Add Item
+              <div className="flex justify-between items-center mb-4">
+                <h3 className="text-sm font-semibold text-white">Line Items</h3>
+                <button onClick={handleAddItem} className="text-xs bg-transparent border border-white/5 hover:border-[#3a3a3a] text-[#a1a1aa] hover:text-white px-3 py-1.5 rounded-lg flex items-center gap-1 transition-colors duration-150">
+                  <Plus size={14} /> Add Item
                 </button>
               </div>
               
               <div className="space-y-3">
                 {items.map((item, index) => (
-                  <div key={index} className="flex gap-3 items-start bg-[#0f172a] p-3 rounded-lg border border-[#334155]">
+                  <div key={index} className="flex gap-3 items-start glass-card-compact">
                     <div className="flex-1">
-                      <input placeholder="Description" type="text" value={item.description} onChange={e => handleUpdateItem(index, 'description', e.target.value)} className="w-full rounded border border-[#334155] bg-[#1e293b] px-2 py-1 text-sm text-white" />
+                      <input placeholder="Description" type="text" value={item.description} onChange={e => handleUpdateItem(index, 'description', e.target.value)} className={inputClasses} />
                     </div>
                     <div className="w-20">
-                      <input placeholder="Qty" type="number" value={item.qty} onChange={e => handleUpdateItem(index, 'qty', Number(e.target.value))} className="w-full rounded border border-[#334155] bg-[#1e293b] px-2 py-1 text-sm text-white" />
+                      <input placeholder="Qty" type="number" value={item.qty} onChange={e => handleUpdateItem(index, 'qty', Number(e.target.value))} className={inputClasses} />
                     </div>
                     <div className="w-28">
-                      <input placeholder="Unit Price" type="number" value={item.unitPrice} onChange={e => handleUpdateItem(index, 'unitPrice', Number(e.target.value))} className="w-full rounded border border-[#334155] bg-[#1e293b] px-2 py-1 text-sm text-white" />
+                      <input placeholder="Unit Price" type="number" value={item.unitPrice} onChange={e => handleUpdateItem(index, 'unitPrice', Number(e.target.value))} className={inputClasses} />
                     </div>
                     <div className="w-20">
-                      <input placeholder="Tax %" type="number" value={item.taxPercent} onChange={e => handleUpdateItem(index, 'taxPercent', Number(e.target.value))} className="w-full rounded border border-[#334155] bg-[#1e293b] px-2 py-1 text-sm text-white" />
+                      <input placeholder="Tax %" type="number" value={item.taxPercent} onChange={e => handleUpdateItem(index, 'taxPercent', Number(e.target.value))} className={inputClasses} />
                     </div>
-                    <div className="w-28 flex items-center h-8">
+                    <div className="w-28 flex items-center h-9 px-3">
                       <span className="text-sm font-medium text-white">{formatCurrency(item.amount || 0)}</span>
                     </div>
-                    <button onClick={() => handleRemoveItem(index)} className="p-1.5 text-rose-400 hover:bg-rose-400/10 rounded mt-0.5">
+                    <button onClick={() => handleRemoveItem(index)} className="text-[#52525b] hover:text-[#ef4444] transition-colors mt-2">
                       <Trash2 size={16} />
                     </button>
                   </div>
                 ))}
               </div>
-              <div className="mt-4 text-right">
-                <span className="text-[#94a3b8] mr-4">Running Total:</span>
-                <span className="text-2xl font-bold text-white">{formatCurrency(liveGrandTotal)}</span>
+              <div className="mt-6 text-right">
+                <span className="text-sm font-medium text-[#a1a1aa] mr-4">Running Total:</span>
+                <span className="text-2xl font-semibold text-white">{formatCurrency(liveGrandTotal)}</span>
               </div>
             </div>
 
-            <div className="flex justify-end gap-3 mt-8 border-t border-[#334155] pt-4">
-              <button onClick={() => setIsCreateModalOpen(false)} className="px-4 py-2 rounded-lg text-white hover:bg-[#334155]">Cancel</button>
-              <button onClick={() => { toast.success('Quotation Created!'); setIsCreateModalOpen(false); }} className="px-4 py-2 rounded-lg bg-cyan-600 text-white hover:bg-cyan-500 font-medium">Save Quotation</button>
+            <div className="flex justify-end gap-2 mt-8 border-t border-white/5 pt-6">
+              <button onClick={() => setIsCreateModalOpen(false)} className="btn btn-secondary">Cancel</button>
+              <button onClick={() => { toast.success('Quotation Created!'); setIsCreateModalOpen(false); }} className="btn btn-primary">Save Quotation</button>
             </div>
           </div>
         </div>
@@ -375,47 +403,47 @@ export default function QuotationsPage() {
 
       {/* View Modal */}
       {isViewModalOpen && selectedQuotation && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="bg-[#1e293b] rounded-xl border border-[#334155] w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4">
+          <div className="glass-panel w-full max-w-3xl max-h-[90vh] overflow-y-auto p-8">
             <div className="flex justify-between items-start mb-8">
               <div>
-                <h2 className="text-2xl font-bold text-white mb-1">Quotation {selectedQuotation.quotationNumber}</h2>
-                <p className="text-sm text-[#94a3b8]">Created: {formatDateIST(selectedQuotation.createdDate)} | Valid until: {formatDateIST(selectedQuotation.validUntil)}</p>
+                <h2 className="text-xl font-semibold text-white mb-2">Quotation {selectedQuotation.quotationNumber}</h2>
+                <p className="text-xs text-[#a1a1aa]">Created: {formatDateIST(selectedQuotation.createdDate)} • Valid until: {formatDateIST(selectedQuotation.validUntil)}</p>
               </div>
               <div className="flex gap-2">
-                <button onClick={() => generatePdf(selectedQuotation)} className="flex items-center gap-2 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded text-sm font-medium">
+                <button onClick={() => generatePdf(selectedQuotation)} className="flex items-center gap-2 btn btn-primary">
                   <Download size={16} /> Generate PDF
                 </button>
-                <button onClick={() => setIsViewModalOpen(false)} className="text-[#94a3b8] hover:text-white p-1"><X size={24} /></button>
+                <button onClick={() => setIsViewModalOpen(false)} className="text-[#52525b] hover:text-white p-2 transition-colors"><X size={20} /></button>
               </div>
             </div>
 
-            <div className="bg-[#0f172a] rounded-lg p-6 border border-[#334155] mb-6">
-              <h3 className="text-sm font-semibold text-[#94a3b8] uppercase mb-2">Bill To</h3>
-              <p className="text-lg font-medium text-white">{selectedQuotation.clientName}</p>
-              <p className="text-sm text-[#cbd5e1]">{selectedQuotation.clientAddress}</p>
-              <p className="text-sm text-[#cbd5e1]">Phone: {selectedQuotation.clientPhone}</p>
+            <div className="glass-card mb-6">
+              <h3 className="text-xs font-medium text-[#52525b] uppercase tracking-wider mb-2">Bill To</h3>
+              <p className="text-base font-medium text-white">{selectedQuotation.clientName}</p>
+              <p className="text-sm text-[#a1a1aa] mt-1">{selectedQuotation.clientAddress}</p>
+              <p className="text-sm text-[#a1a1aa] mt-1">Phone: {selectedQuotation.clientPhone}</p>
             </div>
 
-            <div className="mb-6">
+            <div className="mb-6 glass-card overflow-hidden !p-0">
               <table className="w-full text-left text-sm">
-                <thead className="border-b border-[#334155] text-[#94a3b8]">
+                <thead className="bg-white/5 border-b border-white/5">
                   <tr>
-                    <th className="pb-2 font-medium">Description</th>
-                    <th className="pb-2 font-medium text-right">Qty</th>
-                    <th className="pb-2 font-medium text-right">Unit Price</th>
-                    <th className="pb-2 font-medium text-right">Tax</th>
-                    <th className="pb-2 font-medium text-right">Amount</th>
+                    <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider">Description</th>
+                    <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider text-right">Qty</th>
+                    <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider text-right">Unit Price</th>
+                    <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider text-right">Tax</th>
+                    <th className="px-4 py-3 text-xs font-medium text-[#52525b] uppercase tracking-wider text-right">Amount</th>
                   </tr>
                 </thead>
-                <tbody className="text-[#f8fafc]">
+                <tbody className="text-[#a1a1aa]">
                   {selectedQuotation.items.map(it => (
-                    <tr key={it.id} className="border-b border-[#334155]/50 last:border-0">
-                      <td className="py-3">{it.description}</td>
-                      <td className="py-3 text-right">{it.qty}</td>
-                      <td className="py-3 text-right">{formatCurrency(it.unitPrice)}</td>
-                      <td className="py-3 text-right">{it.taxPercent}%</td>
-                      <td className="py-3 text-right font-medium">{formatCurrency(it.amount)}</td>
+                    <tr key={it.id} className="border-b border-white/5 last:border-0 hover:bg-[#1f1f1f] transition-colors duration-100">
+                      <td className="px-4 py-3">{it.description}</td>
+                      <td className="px-4 py-3 text-right">{it.qty}</td>
+                      <td className="px-4 py-3 text-right">{formatCurrency(it.unitPrice)}</td>
+                      <td className="px-4 py-3 text-right">{it.taxPercent}%</td>
+                      <td className="px-4 py-3 text-right text-white font-medium">{formatCurrency(it.amount)}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -424,17 +452,17 @@ export default function QuotationsPage() {
 
             <div className="flex justify-end mb-8">
               <div className="w-64">
-                <div className="flex justify-between py-2 border-t border-[#334155]">
-                  <span className="text-[#94a3b8] font-medium">Grand Total</span>
-                  <span className="text-xl font-bold text-white">{formatCurrency(selectedQuotation.grandTotal)}</span>
+                <div className="flex justify-between py-4 border-t border-white/5">
+                  <span className="text-sm font-medium text-[#a1a1aa]">Grand Total</span>
+                  <span className="text-xl font-semibold text-white">{formatCurrency(selectedQuotation.grandTotal)}</span>
                 </div>
               </div>
             </div>
 
             {selectedQuotation.notes && (
               <div className="mb-4">
-                <h4 className="text-sm font-medium text-[#94a3b8] mb-1">Notes / Terms</h4>
-                <p className="text-sm text-white">{selectedQuotation.notes}</p>
+                <h4 className="text-xs font-medium text-[#52525b] uppercase tracking-wider mb-2">Notes & Terms</h4>
+                <p className="text-sm text-[#a1a1aa]">{selectedQuotation.notes}</p>
               </div>
             )}
           </div>

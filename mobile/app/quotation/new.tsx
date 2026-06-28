@@ -15,6 +15,7 @@ import Toast from 'react-native-toast-message';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNetwork } from '../../contexts/NetworkContext';
 import { apiPost, apiPut } from '../../services/api';
+import CheckInGuard from '../../components/CheckInGuard';
 
 export default function NewQuotationScreen(): React.JSX.Element {
   const router = useRouter();
@@ -103,7 +104,8 @@ export default function NewQuotationScreen(): React.JSX.Element {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0f172a]" edges={['top', 'bottom']}>
+    <CheckInGuard>
+      <SafeAreaView className="flex-1 bg-[#0f172a]" edges={['top', 'bottom']}>
       {/* Header */}
       <View className="flex-row items-center px-4 py-3 border-b border-slate-800">
         <TouchableOpacity onPress={() => router.back()} className="p-2 mr-2">
@@ -272,5 +274,6 @@ export default function NewQuotationScreen(): React.JSX.Element {
         </TouchableOpacity>
       </View>
     </SafeAreaView>
+  </CheckInGuard>
   );
 }

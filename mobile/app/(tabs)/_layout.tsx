@@ -15,6 +15,7 @@ import {
   Boxes,
 } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import type { UserRole } from '../../types';
 
 // ─── Constants ─────────────────────────────────────────────────────────────────
@@ -26,6 +27,7 @@ const MANAGEMENT_ROLES: UserRole[] = ['OWNER', 'ADMIN'];
 
 export default function TabsLayout(): React.JSX.Element {
   const { user } = useAuth();
+  const insets = useSafeAreaInsets();
 
   const isManagement = user ? MANAGEMENT_ROLES.includes(user.role) : false;
 
@@ -46,8 +48,8 @@ export default function TabsLayout(): React.JSX.Element {
           backgroundColor: '#0f172a',
           borderTopColor: '#334155',
           borderTopWidth: 1,
-          height: 60,
-          paddingBottom: 8,
+          height: 60 + insets.bottom,
+          paddingBottom: Math.max(insets.bottom, 8),
           paddingTop: 8,
         },
         tabBarActiveTintColor: '#2563eb',

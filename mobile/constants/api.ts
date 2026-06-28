@@ -10,10 +10,10 @@
 
 import Constants from 'expo-constants';
 
-export const BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.1.29:3001/api';
+export const BASE_URL = Constants.expoConfig?.extra?.apiUrl || 'http://192.168.1.15:3001/api';
 
 /** WebSocket URL for real-time features (future use) */
-export const WS_URL = Constants.expoConfig?.extra?.wsUrl || 'ws://192.168.1.29:3001';
+export const WS_URL = Constants.expoConfig?.extra?.wsUrl || 'ws://192.168.1.15:3001';
 
 /** Keys used for AsyncStorage persistence */
 export const STORAGE_KEYS = {

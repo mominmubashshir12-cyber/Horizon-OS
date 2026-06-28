@@ -16,8 +16,8 @@ export async function createAlert(
     `[AlertService] Creating alert: "${alertData.title}" (${alertData.severity || 'INFO'})`
   );
 
-  // TODO: Create the alert record
-  // await prisma.systemAlert.create({ data: { ...alertData, firmId } });
+  // Create the alert record
+  await prisma.systemAlert.create({ data: { ...alertData, firmId } });
 
   // TODO: Push via Socket.IO if targetUserId is specified
   // if (alertData.targetUserId) { io.to(`user-${alertData.targetUserId}`).emit('alert', ...); }

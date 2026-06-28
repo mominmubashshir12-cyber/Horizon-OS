@@ -6,7 +6,6 @@ import { useRouter } from 'next/navigation';
 import { useAuth } from '@/contexts/AuthContext';
 import { FirmProvider } from '@/contexts/FirmContext';
 import Sidebar from '@/components/Sidebar';
-import TopBar from '@/components/TopBar';
 import LoadingSpinner from '@/components/LoadingSpinner';
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -21,7 +20,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[#0f172a]">
+      <div className="flex h-screen items-center justify-center bg-[#0a0e14]">
         <LoadingSpinner size="lg" message="Loading Horizon OS..." />
       </div>
     );
@@ -33,20 +32,14 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
   return (
     <FirmProvider>
-      <div className="flex h-screen bg-[#090d14]">
+      <div className="flex h-screen w-full overflow-hidden bg-[#0b0f19]">
         {/* Sidebar */}
         <Sidebar />
 
         {/* Main Area */}
-        <div className="ml-[260px] flex flex-1 flex-col w-[calc(100%-260px)]">
-          {/* TopBar */}
-          <TopBar />
-
-          {/* Page Content */}
-          <main className="flex-1 overflow-y-auto p-8">
-            {children}
-          </main>
-        </div>
+        <main className="flex-1 flex flex-col overflow-x-hidden overflow-y-auto">
+          {children}
+        </main>
       </div>
     </FirmProvider>
   );

@@ -7,6 +7,7 @@ export type UserRole = 'OWNER' | 'ADMIN' | 'PERM_EMPLOYEE' | 'TEMP_EMPLOYEE';
 export type AttendanceStatus = 'PRESENT' | 'ABSENT' | 'HALF_DAY' | 'LEAVE' | 'HOLIDAY';
 
 export type JobStatus =
+  | 'UNASSIGNED'
   | 'ASSIGNED'
   | 'EN_ROUTE'
   | 'ARRIVED'
@@ -72,6 +73,18 @@ export interface Attendance {
   checkInLng?: number | null;
   checkInPhoto?: string | null;
   checkOutTime?: string | null;
+  lunchStartTime?: string | null;
+  lunchEndTime?: string | null;
+  isMultiDay?: boolean;
+  hasCompletedUnlinkedJob?: boolean;
+  lunchDurationMins: number;
+  lunchFlag?: string | null;
+  lunchAutoClose: boolean;
+  lunchPenaltyMins: number;
+  checkoutConfirmed: boolean;
+  checkoutAuto: boolean;
+  checkoutAutoTime?: string | null;
+  expectedCheckoutDate?: string | null;
   lateMinutes: number;
   status: AttendanceStatus;
   firmId: number;
@@ -90,6 +103,7 @@ export interface PerformanceReport {
   totalAbsent: number;
   totalLateDays: number;
   totalLateMinutes: number;
+  lunchPenaltyMins: number;
   jobsCompleted: number;
   toolIncidents: number;
   disciplineScore: number;
@@ -142,6 +156,7 @@ export interface ToolIssuance {
   penaltyApproved: boolean;
   penaltyNote?: string | null;
   status: ToolIssuanceStatus;
+  custodyLocation: 'OFFICE' | 'FIELD' | 'HOME';
   firmId: number;
   createdAt: string;
   updatedAt: string;
@@ -170,7 +185,7 @@ export interface ConsumableMaterial {
 
 export interface MaterialUsageLog {
   id: number;
-  materialId: number;
+  productId: number;
   userId: number;
   jobCardId?: number | null;
   quantityTaken: number;
@@ -184,10 +199,27 @@ export interface MaterialUsageLog {
   firmId: number;
   createdAt: string;
   updatedAt: string;
-  material?: ConsumableMaterial;
+  product?: Product;
   user?: User;
   jobCard?: JobCard | null;
   firm?: Firm;
+}
+
+export interface JobRequiredTool {
+  id: number;
+  jobCardId: number;
+  toolId: number;
+  tool?: Tool;
+  jobCard?: JobCard;
+}
+
+export interface JobRequiredMaterial {
+  id: number;
+  jobCardId: number;
+  productId: number;
+  quantity: number;
+  product?: Product;
+  jobCard?: JobCard;
 }
 
 export interface JobCard {
@@ -200,13 +232,16 @@ export interface JobCard {
   jobType: JobType;
   equipmentNotes?: string | null;
   notes?: string | null;
-  assignedToId: number;
+  assignedToId?: number | null;
   scheduledDate: string;
   estimatedDuration?: string | null;
+  requiresTools: boolean;
   status: JobStatus;
   arrivedAt?: string | null;
   arrivedLat?: number | null;
   arrivedLng?: number | null;
+  startedAt?: string | null;
+  beforePhoto?: string | null;
   completedAt?: string | null;
   verifiedAt?: string | null;
   verifiedById?: number | null;
@@ -214,17 +249,22 @@ export interface JobCard {
   completionPhoto?: string | null;
   issuesFound?: string | null;
   nextVisitNeeded: boolean;
+  isOverdue?: boolean;
   clientId?: number | null;
   createdById: number;
   firmId: number;
   createdAt: string;
   updatedAt: string;
-  assignedTo?: User;
+  assignedEmployees?: User[];
   createdBy?: User;
   verifiedBy?: User | null;
+  photos?: JobPhoto[];
+  addonRequests?: AddonRequest[];
   siteVisits?: SiteVisit[];
   toolIssuances?: ToolIssuance[];
   materialUsageLogs?: MaterialUsageLog[];
+  requiredTools?: JobRequiredTool[];
+  requiredMaterials?: JobRequiredMaterial[];
   firm?: Firm;
 }
 
@@ -240,6 +280,49 @@ export interface SiteVisit {
   createdAt: string;
   jobCard?: JobCard;
   user?: User;
+}
+
+export interface JobPhoto {
+  id: number;
+  jobCardId: number;
+  takenById: number;
+  photoUrl: string;
+  phase: 'ARRIVAL' | 'COMPLETION';
+  notes?: string | null;
+  takenAt: string;
+  takenBy?: User;
+}
+
+export interface AddonRequest {
+  id: number;
+  jobCardId: number;
+  requestedById: number;
+  status: 'PENDING' | 'APPROVED' | 'REJECTED';
+  managerNote?: string | null;
+  createdAt: string;
+  updatedAt: string;
+  requestedBy?: User;
+  tools?: AddonRequestTool[];
+  materials?: AddonRequestMaterial[];
+}
+
+export interface AddonRequestTool {
+  id: number;
+  addonRequestId: number;
+  toolId: number;
+  reason: string;
+  status: 'PENDING' | 'ISSUED' | 'UNAVAILABLE';
+  tool?: Tool;
+}
+
+export interface AddonRequestMaterial {
+  id: number;
+  addonRequestId: number;
+  materialId: number;
+  quantityRequested: number;
+  reason: string;
+  status: 'PENDING' | 'ISSUED' | 'UNAVAILABLE';
+  material?: Product;
 }
 
 export interface Product {
@@ -374,6 +457,14 @@ export interface ApiResponse<T> {
   success: boolean;
   data: T;
   message: string;
+}
+
+export interface PaginatedData<T> {
+  data: T[];
+  total: number;
+  page: number;
+  limit: number;
+  totalPages: number;
 }
 
 export interface LoginResponse {

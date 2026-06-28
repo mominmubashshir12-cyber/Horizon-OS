@@ -19,6 +19,7 @@ import { apiGet, apiPost } from '../../services/api';
 import { useNetwork } from '../../contexts/NetworkContext';
 import { getOffline, saveOffline } from '../../services/offline';
 import type { Product } from '../../types';
+import CheckInGuard from '../../components/CheckInGuard';
 
 export default function ProductsScreen(): React.JSX.Element {
   const { isOnline } = useNetwork();
@@ -117,8 +118,8 @@ export default function ProductsScreen(): React.JSX.Element {
       return;
     }
     
-    if (isNaN(price) || price < selectedProduct.minSellingPrice || price > selectedProduct.maxSellingPrice) {
-      Alert.alert('Invalid Price', `Price must be between ₹${selectedProduct.minSellingPrice} and ₹${selectedProduct.maxSellingPrice}.`);
+    if (isNaN(price) || price < selectedProduct.minSellingPrice || price > selectedProduct.customerPrice) {
+      Alert.alert('Invalid Price', `Price must be between ₹${selectedProduct.minSellingPrice} and ₹${selectedProduct.customerPrice}.`);
       return;
     }
 
@@ -157,10 +158,11 @@ export default function ProductsScreen(): React.JSX.Element {
   const isPriceValid = !isNaN(parsedPrice) && 
                        selectedProduct && 
                        parsedPrice >= selectedProduct.minSellingPrice && 
-                       parsedPrice <= selectedProduct.maxSellingPrice;
+                       parsedPrice <= selectedProduct.customerPrice;
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0f172a]" edges={['bottom']}>
+    <CheckInGuard>
+      <SafeAreaView className="flex-1 bg-[#0f172a]" edges={['bottom']}>
       {!isOnline && (
         <View className="bg-red-500/20 px-4 py-2 flex-row items-center justify-center">
           <Text className="text-red-400 text-xs font-bold uppercase tracking-wider">
@@ -282,7 +284,7 @@ export default function ProductsScreen(): React.JSX.Element {
                   <Text className="text-slate-300 text-xs ml-2">Allowed Price Range</Text>
                 </View>
                 <Text className="text-blue-400 font-bold text-sm">
-                  ₹{selectedProduct.minSellingPrice.toLocaleString('en-IN')} — ₹{selectedProduct.maxSellingPrice.toLocaleString('en-IN')}
+                  ₹{selectedProduct.minSellingPrice.toLocaleString('en-IN')} — ₹{selectedProduct.customerPrice.toLocaleString('en-IN')}
                 </Text>
               </View>
 
@@ -326,7 +328,7 @@ export default function ProductsScreen(): React.JSX.Element {
 
               {salePrice !== '' && !isPriceValid && (
                 <Text className="text-red-400 text-xs font-bold mb-4">
-                  Price must be between ₹{selectedProduct.minSellingPrice.toLocaleString('en-IN')} and ₹{selectedProduct.maxSellingPrice.toLocaleString('en-IN')}
+                  Price must be between ₹{selectedProduct.minSellingPrice.toLocaleString('en-IN')} and ₹{selectedProduct.customerPrice.toLocaleString('en-IN')}
                 </Text>
               )}
 
@@ -365,5 +367,6 @@ export default function ProductsScreen(): React.JSX.Element {
         </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
+  </CheckInGuard>
   );
 }

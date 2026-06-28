@@ -43,17 +43,24 @@ export async function calculateDisciplineScore(
   // 3. Count jobs completed
   const jobsCompletedCount = await prisma.jobCard.count({
     where: {
-      assignedToId: userId,
+      assignedEmployees: { some: { id: userId } },
       verifiedAt: { gte: startDate, lte: endDate },
       status: 'VERIFIED'
     }
   });
 
-  // 4. Calculate score
+  // 4. Count RED lunch flags
+  let redLunchFlags = 0;
+  for (const att of attendances) {
+    if (att.lunchFlag === 'RED') redLunchFlags++;
+  }
+
+  // 5. Calculate score
   let score = 100;
   score -= (2 * absentDays);
   score -= (0.5 * lateDays);
   score -= (1 * toolIncidentsCount);
+  score -= (1 * redLunchFlags); // Deduct 1 point per RED lunch flag
   score += (1 * jobsCompletedCount);
 
   if (score < 0) score = 0;
@@ -93,6 +100,9 @@ export async function generateMonthlyReport(
       if (att.lateMinutes > 0) {
         lateDays++;
         totalLateMinutes += att.lateMinutes;
+      }
+      if (att.lunchPenaltyMins > 0) {
+        totalLateMinutes += att.lunchPenaltyMins;
       }
     }
   }
@@ -142,7 +152,7 @@ export async function generateMonthlyReport(
 
   const jobsCompleted = await prisma.jobCard.count({
     where: {
-      assignedToId: userId,
+      assignedEmployees: { some: { id: userId } },
       verifiedAt: { gte: startDate, lte: endDate },
       status: 'VERIFIED'
     }

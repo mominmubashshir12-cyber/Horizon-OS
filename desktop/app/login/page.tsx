@@ -1,4 +1,4 @@
-// Login page — full-screen dark themed login with premium split-pane design
+// app/login/page.tsx
 'use client';
 
 import React, { useState, FormEvent, useEffect } from 'react';
@@ -51,100 +51,80 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="relative flex min-h-screen items-center justify-center bg-[#090d14] p-4 font-sans">
-      {/* Main Login Container */}
-      <div className="relative flex w-full max-w-5xl h-[600px] overflow-hidden rounded-2xl bg-[#121826] shadow-[0_0_50px_rgba(0,0,0,0.5)]">
-        
-        {/* Left Pane - Form */}
-        <div className="relative z-10 flex w-full md:w-1/2 flex-col justify-center px-10 md:px-20">
-          <h1 className="mb-10 text-4xl font-extrabold tracking-tight text-white">
-            Login
-          </h1>
+    <div className="min-h-screen flex items-center justify-center bg-[#0a0a0a] p-8 font-sans">
+      <div className="w-full max-w-sm bg-[#111111] border border-[#2a2a2a] rounded-xl p-6 hover:border-[#3a3a3a] transition-colors duration-200">
+        <h1 className="text-2xl font-semibold text-white tracking-tight mb-2">
+          Login
+        </h1>
+        <p className="text-sm text-[#a1a1aa] mb-6">
+          Sign in to manage your Horizon OS account.
+        </p>
 
-          {error && (
-            <div className="mb-6 rounded-lg border border-red-500/20 bg-red-500/10 px-4 py-3 text-sm text-red-400">
-              {error}
-            </div>
-          )}
-
-          <form onSubmit={handleSubmit} className="space-y-8">
-            {/* Username */}
-            <div className="relative border-b border-white/10 pb-2">
-              <label htmlFor="username" className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Username
-              </label>
-              <div className="flex items-center">
-                <input
-                  id="username"
-                  type="text"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
-                  placeholder="Enter your username"
-                  autoComplete="username"
-                  autoFocus
-                  disabled={isSubmitting}
-                />
-                <User size={16} className="text-slate-500" />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="relative border-b border-white/10 pb-2">
-              <label htmlFor="password" className="mb-2 block text-[10px] font-bold uppercase tracking-widest text-slate-400">
-                Password
-              </label>
-              <div className="flex items-center">
-                <input
-                  id="password"
-                  type="password"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="w-full bg-transparent text-sm text-white placeholder-slate-600 outline-none"
-                  placeholder="••••••••"
-                  autoComplete="current-password"
-                  disabled={isSubmitting}
-                />
-                <Lock size={16} className="text-slate-500" />
-              </div>
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="mt-6 flex w-full items-center justify-center rounded-lg bg-gradient-to-r from-[#00c6ff] to-[#0072ff] py-3.5 text-sm font-bold text-white shadow-[0_0_20px_rgba(0,136,255,0.4)] transition-transform hover:-translate-y-0.5"
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={18} className="mr-2 animate-spin" />
-                  Logging in...
-                </>
-              ) : (
-                'Login'
-              )}
-            </button>
-          </form>
-
-          <p className="mt-8 text-center text-xs text-slate-400">
-            Don't have an account? <span className="font-bold text-[#00c6ff] cursor-pointer hover:underline">Sign Up</span>
-          </p>
-        </div>
-
-        {/* Right Pane - Slanted Blue Area */}
-        <div 
-          className="absolute bottom-0 right-0 top-0 z-0 hidden w-[55%] flex-col items-center justify-center bg-[#0088ff] md:flex"
-          style={{ clipPath: 'polygon(15% 0, 100% 0, 100% 100%, 0% 100%)' }}
-        >
-          <div className="pl-20 pr-12 text-center">
-            <h2 className="mb-4 text-4xl font-black uppercase tracking-tight text-white drop-shadow-md">
-              Welcome Back!
-            </h2>
-            <p className="mx-auto max-w-sm text-sm font-medium leading-relaxed text-white/90">
-              Enter your credentials to seamlessly access your intelligent dashboard.
-            </p>
+        {error && (
+          <div className="mb-6 rounded-lg border border-[#ef4444] bg-[#ef4444]/10 px-4 py-3 text-sm text-[#ef4444]">
+            {error}
           </div>
-        </div>
+        )}
+
+        <form onSubmit={handleSubmit} className="space-y-4">
+          <div>
+            <label htmlFor="username" className="text-xs font-medium text-[#a1a1aa] mb-1.5 block">
+              Username
+            </label>
+            <div className="relative flex items-center">
+              <User size={16} className="absolute left-3 text-[#52525b]" />
+              <input
+                id="username"
+                type="text"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-[#52525b] focus:outline-none focus:border-[#0070f3] transition-colors duration-150 disabled:opacity-50"
+                placeholder="Enter your username"
+                autoComplete="username"
+                autoFocus
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          <div>
+            <label htmlFor="password" className="text-xs font-medium text-[#a1a1aa] mb-1.5 block">
+              Password
+            </label>
+            <div className="relative flex items-center">
+              <Lock size={16} className="absolute left-3 text-[#52525b]" />
+              <input
+                id="password"
+                type="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="w-full bg-[#0a0a0a] border border-[#2a2a2a] rounded-lg pl-9 pr-3 py-2 text-sm text-white placeholder-[#52525b] focus:outline-none focus:border-[#0070f3] transition-colors duration-150 disabled:opacity-50"
+                placeholder="••••••••"
+                autoComplete="current-password"
+                disabled={isSubmitting}
+              />
+            </div>
+          </div>
+
+          <button
+            type="submit"
+            disabled={isSubmitting}
+            className="mt-2 w-full flex items-center justify-center bg-[#0070f3] hover:bg-[#0060d3] text-white text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-150 disabled:opacity-50 disabled:pointer-events-none cursor-pointer"
+          >
+            {isSubmitting ? (
+              <>
+                <Loader2 size={16} className="mr-2 animate-spin" />
+                Logging in...
+              </>
+            ) : (
+              'Login'
+            )}
+          </button>
+        </form>
+
+        <p className="mt-6 text-center text-sm text-[#a1a1aa]">
+          Don't have an account? <span className="font-medium text-[#0070f3] cursor-pointer hover:text-[#0060d3] transition-colors">Sign Up</span>
+        </p>
       </div>
     </div>
   );

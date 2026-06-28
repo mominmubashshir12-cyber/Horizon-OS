@@ -3,6 +3,8 @@
 import { Router, Response } from 'express';
 import { authenticateToken } from '../middleware/auth';
 import { AuthenticatedRequest, ApiResponse } from '../types';
+import { z } from 'zod';
+import { validateBody } from '../middleware/validateBody';
 
 const router = Router();
 

@@ -63,7 +63,8 @@ export default function InventoryScreen(): React.JSX.Element {
         // Load active jobs for dropdown
         const jobsRes = await apiGet<any[]>('/jobcards?status=ASSIGNED,EN_ROUTE,ARRIVED,IN_PROGRESS');
         if (jobsRes.success) {
-          const myJobs = jobsRes.data.filter(j => j.assignedToId === user?.id);
+          const jobsData = (jobsRes.data as any).data ?? jobsRes.data;
+          const myJobs = jobsData.filter((j: any) => j.assignedToId === user?.id);
           setActiveJobs(myJobs);
         }
       } catch (err) {
@@ -124,7 +125,7 @@ export default function InventoryScreen(): React.JSX.Element {
     try {
       setIsSubmitting(true);
       const res = await apiPost('/materials/usage/take', {
-        materialId: activeMaterial.id,
+        productId: activeMaterial.id,
         quantityTaken: qty,
         jobCardId: selectedJobId || undefined,
       });

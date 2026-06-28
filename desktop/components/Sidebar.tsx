@@ -1,4 +1,4 @@
-// Sidebar — main navigation sidebar with role-based access controls and active route highlighting
+// Sidebar — main navigation sidebar with premium command center aesthetic
 'use client';
 
 import React, { useState, useEffect } from 'react';
@@ -17,11 +17,12 @@ import {
   Users,
   BarChart3,
   Settings,
-  Lock,
-  Hexagon,
-  Tag,
   AlertTriangle,
-  ChevronDown
+  TrendingUp,
+  LogOut,
+  ChevronDown,
+  Building2,
+  Monitor
 } from 'lucide-react';
 
 interface NavItem {
@@ -48,13 +49,19 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { label: 'Job Cards', href: '/jobs', icon: <ClipboardList size={18} /> },
       { label: 'Attendance', href: '/attendance', icon: <Clock size={18} /> },
-      { label: 'Tools & Materials', href: '/tools', icon: <Wrench size={18} /> },
+      { label: 'Tools', href: '/tools', icon: <Wrench size={18} /> },
+    ],
+  },
+  {
+    title: 'FINANCE',
+    items: [
+      { label: 'Cashflow', href: '/cashflow', icon: <TrendingUp size={18} />, restricted: true },
     ],
   },
   {
     title: 'COMMERCE',
     items: [
-      { label: 'Products', href: '/products', icon: <Tag size={18} /> },
+      { label: 'Products', href: '/products', icon: <Package size={18} /> },
       { label: 'Inventory', href: '/inventory', icon: <Boxes size={18} /> },
       { label: 'Sales', href: '/sales', icon: <IndianRupee size={18} /> },
       { label: 'Quotations', href: '/quotations', icon: <FileText size={18} /> },
@@ -68,21 +75,16 @@ const NAV_SECTIONS: NavSection[] = [
       { label: 'Anti-Fraud Flags', href: '/flags', icon: <AlertTriangle size={18} />, restricted: true },
     ],
   },
-  {
-    title: 'SYSTEM',
-    items: [
-      { label: 'Settings', href: '/settings', icon: <Settings size={18} /> },
-    ],
-  },
 ];
 
 export default function Sidebar() {
   const pathname = usePathname();
-  const { user } = useAuth();
+  const { user, logout } = useAuth();
 
   const isPrivileged = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   const [fraudCount, setFraudCount] = useState(0);
+  const [workspaceOpen, setWorkspaceOpen] = useState(false);
 
   useEffect(() => {
     const handleUpdateBadge = (e: Event) => {
@@ -94,95 +96,145 @@ export default function Sidebar() {
   }, []);
 
   return (
-    <aside className="fixed left-0 top-0 z-40 flex h-screen w-[260px] flex-col border-r border-white/5 bg-[#090d14]">
-      {/* Brand Header */}
-      <div className="flex h-20 flex-col justify-center px-6">
-        <div className="flex items-center gap-3">
-          <div className="flex h-8 w-8 items-center justify-center rounded bg-[#0088ff]">
-            <span className="text-sm font-black text-white">H</span>
+    <aside className="flex flex-col h-full w-[260px] backdrop-blur-xl flex-shrink-0" style={{ background: 'var(--color-surface)', borderRight: '1px solid var(--color-border-base)' }}>
+      {/* Workspace Switcher */}
+      <div className="p-4 border-b" style={{ borderColor: 'var(--color-border-base)' }}>
+        <button 
+          onClick={() => setWorkspaceOpen(!workspaceOpen)}
+          className="w-full flex items-center justify-between p-2 rounded-xl transition-all duration-200 border border-transparent hover:border-white/10"
+          style={{ '--tw-hover-bg': 'var(--color-surface-hover)' } as any}
+        >
+          <div className="flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg shadow-sm" style={{ background: 'rgba(59,130,246,0.1)', border: '1px solid rgba(59,130,246,0.2)' }}>
+              <Building2 size={20} style={{ color: 'var(--color-brand-primary)' }} />
+            </div>
+            <div className="flex flex-col text-left">
+              <span className="text-sm font-semibold tracking-wide" style={{ color: 'var(--color-text-primary)' }}>Horizon OS</span>
+              <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>HQ Workspace</span>
+            </div>
           </div>
-          <span className="text-lg font-black tracking-tight text-white">
-            Horizon
-          </span>
-        </div>
+          <ChevronDown size={16} style={{ color: 'var(--color-text-tertiary)' }} />
+        </button>
       </div>
 
-      {/* User Selector Dropdown (Visual only for now) */}
-      <div className="px-4 mb-6">
-        <div className="flex cursor-pointer items-center justify-between rounded-lg border border-white/5 bg-[#121826] p-3 transition-colors hover:bg-white/5">
+      {/* Navigation */}
+      <nav className="flex-1 overflow-y-auto px-4 py-6 scrollbar-hide">
+        {NAV_SECTIONS.map((section) => {
+          const visibleItems = section.items.filter(item => !item.restricted || isPrivileged);
+          if (visibleItems.length === 0) return null;
+
+          return (
+            <div key={section.title} className="mb-8">
+              <p className="mb-3 px-2 text-[10px] font-bold uppercase tracking-[0.15em]" style={{ color: 'var(--color-text-tertiary)' }}>
+                {section.title}
+              </p>
+              <ul className="space-y-1">
+                {visibleItems.map((item) => {
+                  const isActive = pathname === item.href;
+
+                  return (
+                    <li key={item.label + item.href}>
+                      <Link
+                        href={item.href}
+                        className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
+                        style={{ 
+                          background: isActive ? 'var(--color-surface-hover)' : 'transparent',
+                          color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                          borderLeft: isActive ? '2px solid var(--color-brand-primary)' : '2px solid transparent'
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = 'var(--color-surface-hover)';
+                            e.currentTarget.style.color = 'var(--color-text-primary)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.background = 'transparent';
+                            e.currentTarget.style.color = 'var(--color-text-secondary)';
+                          }
+                        }}
+                      >
+                        <span
+                          className="flex-shrink-0 transition-colors duration-200"
+                          style={{ color: isActive ? 'var(--color-brand-primary)' : 'inherit' }}
+                        >
+                          {item.icon}
+                        </span>
+                        <span className="flex-1 tracking-wide">{item.label}</span>
+                        {item.href === '/flags' && fraudCount > 0 && (
+                          <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-md bg-red-500/20 text-xs font-bold text-red-400 border border-red-500/30">
+                            {fraudCount}
+                          </span>
+                        )}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )
+        })}
+      </nav>
+
+      {/* Settings & Bottom Controls */}
+      <div className="px-4 py-2 border-t" style={{ borderColor: 'var(--color-border-base)' }}>
+        <ul className="space-y-1 mb-4">
+          <li>
+            <Link
+              href="/settings"
+              className="group relative flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all duration-200"
+              style={{ 
+                background: pathname === '/settings' ? 'var(--color-surface-hover)' : 'transparent',
+                color: pathname === '/settings' ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                borderLeft: pathname === '/settings' ? '2px solid var(--color-brand-primary)' : '2px solid transparent'
+              }}
+              onMouseEnter={(e) => {
+                if (pathname !== '/settings') {
+                  e.currentTarget.style.background = 'var(--color-surface-hover)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (pathname !== '/settings') {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }
+              }}
+            >
+              <Settings size={18} style={{ color: pathname === '/settings' ? 'var(--color-brand-primary)' : 'inherit' }} />
+              <span className="tracking-wide">System Settings</span>
+            </Link>
+          </li>
+        </ul>
+      </div>
+
+      {/* User Profile */}
+      <div className="p-4" style={{ background: 'var(--color-surface-highlight)' }}>
+        <div className="flex items-center justify-between rounded-xl p-3 border hover:border-[#374151] transition-colors duration-200 shadow-lg" style={{ background: 'var(--color-surface)', borderColor: 'var(--color-border-base)' }}>
           <div className="flex items-center gap-3">
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-[#0088ff]">
-              <span className="text-xs font-bold text-white">
+            <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-gradient-to-br from-indigo-500 to-purple-600 shadow-inner">
+              <span className="text-sm font-bold text-white">
                 {user?.username?.charAt(0).toUpperCase() || 'U'}
               </span>
             </div>
             <div className="flex flex-col">
-              <span className="text-xs font-bold text-white">{user?.username || 'User'}</span>
-              <span className="text-[9px] font-bold uppercase tracking-wider text-[#0088ff]">
+              <span className="text-sm font-semibold tracking-wide" style={{ color: 'var(--color-text-primary)' }}>{user?.username || 'User'}</span>
+              <span className="text-[10px] font-bold uppercase tracking-wider" style={{ color: 'var(--color-brand-primary)' }}>
                 {user?.role || 'USER'}
               </span>
             </div>
           </div>
-          <ChevronDown size={14} className="text-slate-500" />
-        </div>
-      </div>
-
-      {/* Navigation */}
-      <nav className="flex-1 overflow-y-auto px-4 pb-8">
-        {NAV_SECTIONS.map((section) => (
-          <div key={section.title} className="mb-6">
-            <p className="mb-2 px-2 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-              {section.title}
-            </p>
-            <ul className="space-y-1">
-              {section.items.map((item) => {
-                const isActive = pathname === item.href;
-                const showLock = item.restricted && !isPrivileged;
-
-                return (
-                  <li key={item.label + item.href}>
-                    <Link
-                      href={item.href}
-                      className={`group relative flex items-center gap-3 rounded-lg px-3 py-2.5 text-[13px] font-semibold transition-all duration-200 ${
-                        isActive
-                          ? 'bg-[#0088ff]/10 text-white'
-                          : 'text-slate-400 hover:bg-white/5 hover:text-white'
-                      }`}
-                    >
-                      {isActive && (
-                        <div className="absolute left-0 top-1/2 h-4 w-1 -translate-y-1/2 rounded-r-full bg-[#0088ff]" />
-                      )}
-                      <span
-                        className={`flex-shrink-0 transition-colors ${
-                          isActive ? 'text-[#0088ff]' : 'text-slate-500 group-hover:text-slate-300'
-                        }`}
-                      >
-                        {item.icon}
-                      </span>
-                      <span className="flex-1">{item.label}</span>
-                      {showLock && (
-                        <Lock
-                          size={12}
-                          className="flex-shrink-0 text-slate-600"
-                        />
-                      )}
-                      {item.href === '/flags' && fraudCount > 0 && (
-                        <span className="ml-auto flex h-5 w-5 items-center justify-center rounded-full bg-red-500 text-[10px] font-bold text-white">{fraudCount}</span>
-                      )}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
-          </div>
-        ))}
-      </nav>
-
-      {/* Footer */}
-      <div className="px-6 py-4">
-        <div className="flex cursor-pointer items-center justify-between rounded-lg border border-white/5 bg-[#121826] px-4 py-2 transition-colors hover:bg-white/5">
-          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-500">System</span>
-          <span className="text-[10px] font-bold uppercase tracking-widest text-red-500">Quit</span>
+          <button 
+            onClick={logout}
+            className="p-2 rounded-lg transition-colors"
+            style={{ color: 'var(--color-text-tertiary)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-brand-rose)'; e.currentTarget.style.background = 'rgba(244,63,94,0.1)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; e.currentTarget.style.background = 'transparent'; }}
+            title="Log out"
+          >
+             <LogOut size={16} />
+          </button>
         </div>
       </div>
     </aside>

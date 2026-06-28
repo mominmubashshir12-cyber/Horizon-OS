@@ -27,7 +27,8 @@ import {
 } from 'lucide-react-native';
 import { useAuth } from '../../contexts/AuthContext';
 import LoadingOverlay from '../../components/LoadingOverlay';
-import { apiGet } from '../../services/api';
+import { apiGet, apiPut } from '../../services/api';
+import Toast from 'react-native-toast-message';
 
 // ─── Interfaces ────────────────────────────────────────────────────────────────
 
@@ -45,6 +46,15 @@ interface Quotation {
   items?: QuotationItem[];
   subtotal?: number;
   tax?: number;
+}
+
+interface MyTool {
+  id: number;
+  name: string;
+  toolCode: string;
+  category: string;
+  activeIssuanceId?: number;
+  custodyLocation?: 'OFFICE' | 'FIELD' | 'HOME';
 }
 
 // ─── Profile Row Component ─────────────────────────────────────────────────────
@@ -129,16 +139,14 @@ export default function ProfileScreen(): React.JSX.Element {
     );
   }, [logout]);
 
-  const roleLabel = user?.role
-    ? user.role.charAt(0) + user.role.slice(1).toLowerCase()
-    : 'Unknown';
-
   const [selectedMonth, setSelectedMonth] = useState<Date>(new Date());
   const [summary, setSummary] = useState<Record<string, unknown> | null>(null);
   const [performance, setPerformance] = useState<Record<string, unknown> | null>(null);
   const [myQuotations, setMyQuotations] = useState<Quotation[]>([]);
   const [selectedQuotation, setSelectedQuotation] = useState<Quotation | null>(null);
+  const [myTools, setMyTools] = useState<MyTool[]>([]);
   const [loadingData, setLoadingData] = useState<boolean>(false);
+  const [isReturningTool, setIsReturningTool] = useState<boolean>(false);
 
   // @ts-ignore
   const minDate = user?.employmentStart ? new Date(user.employmentStart) : new Date(new Date().getFullYear(), 0, 1);
@@ -172,10 +180,11 @@ export default function ProfileScreen(): React.JSX.Element {
       const monthStr = localISOTime.slice(0, 7);
 
       try {
-        const [sumRes, perfRes, quotRes] = await Promise.all([
+        const [sumRes, perfRes, quotRes, toolsRes] = await Promise.all([
           apiGet<Record<string, unknown>>(`/attendance/monthly-summary/${user.id}?month=${monthStr}`),
           apiGet<Record<string, unknown>>(`/attendance/performance/${user.id}?month=${monthStr}`),
-          apiGet<Quotation[]>('/quotations')
+          apiGet<Quotation[]>('/quotations'),
+          apiGet<MyTool[]>('/tools/my-tools')
         ]);
         
         if (sumRes.success && sumRes.data) setSummary(sumRes.data);
@@ -189,16 +198,57 @@ export default function ProfileScreen(): React.JSX.Element {
         } else {
           setMyQuotations([]);
         }
+
+        if (toolsRes.success && toolsRes.data) {
+          setMyTools(toolsRes.data);
+        } else {
+          setMyTools([]);
+        }
       } catch (e) {
         setSummary(null);
         setPerformance(null);
         setMyQuotations([]);
+        setMyTools([]);
       } finally {
         setLoadingData(false);
       }
     }
     loadData();
   }, [selectedMonth, user?.id]);
+
+  const handleReturnTool = async (issuanceId: number) => {
+    try {
+      setIsReturningTool(true);
+      const res = await apiPut(`/tools/issuances/${issuanceId}/return`, {
+        returnCondition: 'GOOD',
+      });
+      if ((res as any).success) {
+        Toast.show({ type: 'success', text1: 'Tool Returned', text2: 'Please hand it to the warehouse manager.' });
+        // Refresh tools
+        const toolsRes = await apiGet<MyTool[]>('/tools/my-tools');
+        if (toolsRes.success && toolsRes.data) setMyTools(toolsRes.data);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to return tool');
+    } finally {
+      setIsReturningTool(false);
+    }
+  };
+
+  const handleToggleCustody = async (tool: MyTool) => {
+    if (!tool.activeIssuanceId) return;
+    const newLocation = tool.custodyLocation === 'HOME' ? 'OFFICE' : 'HOME';
+    try {
+      const res = await apiPut(`/tools/issuances/${tool.activeIssuanceId}/set-custody`, { custodyLocation: newLocation });
+      if ((res as any).success) {
+        Toast.show({ type: 'success', text1: 'Custody Updated', text2: `Tool marked as ${newLocation}` });
+        const toolsRes = await apiGet<MyTool[]>('/tools/my-tools');
+        if (toolsRes.success && toolsRes.data) setMyTools(toolsRes.data);
+      }
+    } catch (err: any) {
+      Alert.alert('Error', err.response?.data?.message || 'Failed to update custody');
+    }
+  };
 
   const roleLabel = user?.role
     ? user.role.charAt(0) + user.role.slice(1).toLowerCase()
@@ -372,6 +422,50 @@ export default function ProfileScreen(): React.JSX.Element {
              </View>
           ) : (
             <Text className="text-slate-500 text-center text-sm py-8 font-medium">Report not generated yet</Text>
+          )}
+        </View>
+
+        {/* ── My Issued Tools ── */}
+        <View className="bg-[#1e293b] rounded-xl border border-[#334155] p-4 mb-4">
+          <Text className="text-slate-400 text-xs font-semibold uppercase tracking-wider mb-4">
+            My Issued Tools
+          </Text>
+          {loadingData ? (
+             <ActivityIndicator color="#60a5fa" />
+          ) : myTools.length > 0 ? (
+            myTools.map((t) => (
+              <View key={t.id} className="flex-row items-center justify-between py-3 border-b border-slate-700/50 last:border-0">
+                <View className="flex-1 mr-3">
+                  <Text className="text-slate-50 font-bold text-sm" numberOfLines={1}>{t.name}</Text>
+                  <Text className="text-slate-400 text-xs mt-1">{t.toolCode} • {t.category}</Text>
+                  <TouchableOpacity
+                    onPress={() => handleToggleCustody(t)}
+                    className="mt-2 self-start flex-row items-center border border-[#334155] rounded-full px-2.5 py-1"
+                  >
+                    <View className={`w-2 h-2 rounded-full mr-2 ${t.custodyLocation === 'HOME' ? 'bg-amber-400' : 'bg-slate-400'}`} />
+                    <Text className={`text-[10px] font-bold ${t.custodyLocation === 'HOME' ? 'text-amber-400' : 'text-slate-400'}`}>
+                      {t.custodyLocation === 'HOME' ? 'HOME CUSTODY' : 'TAKING TO OFFICE'}
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+                {t.activeIssuanceId && (
+                  <TouchableOpacity
+                    onPress={() => {
+                      Alert.alert('Return Tool', `Return ${t.name} in GOOD condition? For damaged tools, contact admin.`, [
+                        { text: 'Cancel', style: 'cancel' },
+                        { text: 'Return', onPress: () => handleReturnTool(t.activeIssuanceId!) }
+                      ]);
+                    }}
+                    disabled={isReturningTool}
+                    className="bg-emerald-500/20 px-3 py-1.5 rounded-lg border border-emerald-500/30"
+                  >
+                    <Text className="text-emerald-400 text-xs font-bold">Return</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            ))
+          ) : (
+            <Text className="text-slate-500 text-sm italic text-center py-2">No tools currently issued to you.</Text>
           )}
         </View>
 

@@ -2,10 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { toast } from 'sonner';
-import { CheckCircle2 } from 'lucide-react';
-import PageHeader from '@/components/PageHeader';
-import DataTable, { Column } from '@/components/DataTable';
-import Modal from '@/components/Modal';
+import { CheckCircle2, X } from 'lucide-react';
 import { apiGet, apiPut } from '@/services/api';
 
 export default function FlagsPage() {
@@ -54,71 +51,108 @@ export default function FlagsPage() {
     }
   };
 
-  const columns: Column<any>[] = [
-    { key: 'createdAt', label: 'Date', render: (val) => new Date(val as string).toLocaleString() },
-    { key: 'flagType', label: 'Type', render: (val) => <span className="text-red-400 font-bold">{val}</span> },
-    { key: 'user', label: 'Employee', render: (_, row) => row.user?.fullName },
-    { key: 'product', label: 'Product', render: (_, row) => row.product?.name },
-    { key: 'details', label: 'Details' },
-    { key: 'status', label: 'Status', render: (_, row) => (row.reviewed ? <span className="text-green-400">Reviewed</span> : <span className="text-yellow-400">Pending</span>) },
-    {
-      key: 'actions',
-      label: 'Actions',
-      render: (_, row) =>
-        !row.reviewed && (
-          <button onClick={() => openReviewModal(row)} className="flex items-center gap-1 text-blue-400 hover:text-blue-300 text-xs">
-            <CheckCircle2 size={14} /> Review
-          </button>
-        ),
-    },
-  ];
-
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-[#f8fafc]">
-      <PageHeader title="Anti-Fraud Flags" subtitle="Review anomalous transactions and pricing overrides" />
+    <div className="p-8 flex-1 overflow-auto bg-[#0a0e14]">
+      {/* Header */}
+      <div className="mb-8 flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold text-white tracking-tight">Anti-Fraud Flags</h1>
+          <p className="text-sm text-[#a1a1aa] mt-1">Review anomalous transactions and pricing overrides</p>
+        </div>
+      </div>
 
       {isLoading ? (
-        <div className="py-12 text-center text-slate-400">Loading flags...</div>
+        <div className="py-12 text-center text-sm text-[#52525b]">Loading flags...</div>
       ) : (
-        <DataTable columns={columns} data={flags} emptyMessage="No anti-fraud flags found." />
+        <div className="glass-card overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full text-left">
+              <thead className="bg-white/5 border-b border-white/5">
+                <tr>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Date</th>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Type</th>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Employee</th>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Product</th>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Details</th>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Status</th>
+                  <th className="text-xs font-medium text-[#52525b] uppercase tracking-wider px-4 py-3">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-[#1f1f1f]">
+                {flags.length === 0 ? (
+                  <tr><td colSpan={7} className="px-4 py-8 text-center text-sm text-[#52525b]">No anti-fraud flags found.</td></tr>
+                ) : (
+                  flags.map(row => (
+                    <tr key={row.id} className="hover:bg-[#1f1f1f] transition-colors duration-100">
+                      <td className="px-4 py-3 text-sm text-[#a1a1aa] whitespace-nowrap">{new Date(row.createdAt).toLocaleString()}</td>
+                      <td className="px-4 py-3 text-sm font-medium text-[#ef4444]">{row.flagType}</td>
+                      <td className="px-4 py-3 text-sm text-[#a1a1aa]">{row.user?.fullName}</td>
+                      <td className="px-4 py-3 text-sm text-[#a1a1aa]">{row.product?.name}</td>
+                      <td className="px-4 py-3 text-sm text-[#a1a1aa]">{row.details}</td>
+                      <td className="px-4 py-3 text-sm">
+                        {row.reviewed ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-[#22c55e]/10 text-[#22c55e]">Reviewed</span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded-md text-xs font-medium bg-[#f59e0b]/10 text-[#f59e0b]">Pending</span>
+                        )}
+                      </td>
+                      <td className="px-4 py-3 text-sm">
+                        {!row.reviewed && (
+                          <button onClick={() => openReviewModal(row)} className="flex items-center gap-1.5 text-sm font-medium text-[#0070f3] hover:text-[#0060d3] transition-colors">
+                            <CheckCircle2 size={16} /> Review
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
       )}
 
-      <Modal
-        isOpen={isModalOpen}
-        onClose={() => setIsModalOpen(false)}
-        title="Review Flag"
-      >
-        <form onSubmit={handleReviewSubmit} className="space-y-4">
-          <div className="rounded-lg bg-[#0f172a] p-4 border border-[#334155]">
-            <p className="text-sm font-semibold text-red-400 mb-2">{selectedFlag?.flagType}</p>
-            <p className="text-sm text-slate-300">{selectedFlag?.details}</p>
-            <p className="text-xs text-slate-500 mt-2">By: {selectedFlag?.user?.fullName}</p>
+      {/* Modal */}
+      {isModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm">
+          <div className="glass-panel p-6 w-full max-w-lg mx-auto">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="text-lg font-semibold text-white">Review Flag</h3>
+              <button onClick={() => setIsModalOpen(false)} className="text-[#52525b] hover:text-white transition-colors duration-150"><X size={20}/></button>
+            </div>
+            <form onSubmit={handleReviewSubmit} className="space-y-4">
+              <div className="glass-card p-4">
+                <p className="text-sm font-medium text-[#ef4444] mb-2">{selectedFlag?.flagType}</p>
+                <p className="text-sm text-[#a1a1aa]">{selectedFlag?.details}</p>
+                <p className="text-xs text-[#52525b] mt-3">By: {selectedFlag?.user?.fullName}</p>
+              </div>
+              <div>
+                <label className="text-xs font-medium text-[#a1a1aa] mb-1.5 block">Review Notes</label>
+                <textarea
+                  rows={3}
+                  required
+                  value={reviewNotes}
+                  onChange={(e) => setReviewNotes(e.target.value)}
+                  className="input"
+                  placeholder="Acknowledge or note actions taken..."
+                />
+              </div>
+              <div className="flex justify-end gap-3 mt-6">
+                <button
+                  type="button"
+                  onClick={() => setIsModalOpen(false)}
+                  className="btn btn-secondary"
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn btn-primary">
+                  Mark as Reviewed
+                </button>
+              </div>
+            </form>
           </div>
-          <div>
-            <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Review Notes</label>
-            <textarea
-              rows={3}
-              required
-              value={reviewNotes}
-              onChange={(e) => setReviewNotes(e.target.value)}
-              className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
-              placeholder="Acknowledge or note actions taken..."
-            />
-          </div>
-          <div className="flex justify-end gap-2 border-t border-[#334155] pt-4">
-            <button
-              type="button"
-              onClick={() => setIsModalOpen(false)}
-              className="rounded-lg border border-[#334155] bg-transparent px-4 py-2 text-sm font-semibold text-[#94a3b8] hover:bg-[#0f172a] hover:text-[#f8fafc]"
-            >
-              Cancel
-            </button>
-            <button type="submit" className="rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]">
-              Mark as Reviewed
-            </button>
-          </div>
-        </form>
-      </Modal>
+        </div>
+      )}
     </div>
   );
 }

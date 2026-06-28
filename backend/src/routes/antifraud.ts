@@ -3,6 +3,8 @@ import { PrismaClient } from '@prisma/client';
 import { authenticateToken } from '../middleware/auth';
 import { requireOwner } from '../middleware/roleGuard';
 import { AuthenticatedRequest } from '../types';
+import { z } from 'zod';
+import { validateBody } from '../middleware/validateBody';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -27,7 +29,10 @@ router.get('/', authenticateToken, requireOwner, async (req: AuthenticatedReques
 });
 
 // PUT /api/antifraud/:id/review
-router.put('/:id/review', authenticateToken, requireOwner, async (req: AuthenticatedRequest, res, next) => {
+const reviewFlagSchema = z.object({
+  reviewNotes: z.string().optional(),
+});
+router.put('/:id/review', authenticateToken, requireOwner, validateBody(reviewFlagSchema), async (req: AuthenticatedRequest, res, next) => {
   try {
     const id = parseInt(req.params.id as string, 10);
     const { reviewNotes } = req.body;

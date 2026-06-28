@@ -5,7 +5,10 @@ import { Server as SocketIOServer } from 'socket.io';
 import app from './app';
 import { config } from './config';
 import { initStaleJobChecker } from './jobs/staleJobChecker';
-import { runToolOverdueChecker } from './jobs/toolOverdueChecker';
+import { startAutoCheckoutJobs } from './jobs/autoCheckout';
+import { startLunchAutoCloseJob } from './jobs/lunchAutoClose';
+import { initToolOverdueChecker } from './jobs/toolOverdueChecker';
+import { initMaterialHoldingChecker } from './jobs/materialHoldingChecker';
 import { initMonthlyReports } from './jobs/monthlyReports';
 import cron from 'node-cron';
 
@@ -52,15 +55,13 @@ export { io };
 // ─── START SERVER ──────────────────────────────────────────────────────────────
 
 server.listen(config.port, () => {
-  // Initialize Background Cron Jobs
+  // Start scheduled cron jobs
   initStaleJobChecker();
+  startAutoCheckoutJobs();
+  startLunchAutoCloseJob();
   initMonthlyReports();
-  
-  cron.schedule('0 9 * * *', () => {
-    runToolOverdueChecker().catch(console.error);
-  }, {
-    timezone: "Asia/Kolkata"
-  });
+  initToolOverdueChecker();
+  initMaterialHoldingChecker();
 
   console.log('╔═══════════════════════════════════════════════════╗');
   console.log('║           HORIZON OS — Backend Server            ║');

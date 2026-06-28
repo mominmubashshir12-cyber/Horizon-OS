@@ -21,12 +21,17 @@ import reportRoutes from './routes/reports';
 import alertRoutes from './routes/alerts';
 import syncRoutes from './routes/sync';
 import antifraudRoutes from './routes/antifraud';
+import cashflowRoutes from './routes/cashflow';
+import settingsRoutes from './routes/settings';
+import addonRoutes from './routes/addons';
 
 const app = express();
 
 // ─── GLOBAL MIDDLEWARE ─────────────────────────────────────────────────────────
 
-app.use(helmet());
+app.use(helmet({
+  crossOriginResourcePolicy: { policy: "cross-origin" }
+}));
 app.use(
   cors({
     origin: config.corsOrigins,
@@ -69,6 +74,9 @@ app.use('/api/reports', reportRoutes);
 app.use('/api/alerts', alertRoutes);
 app.use('/api/sync', syncRoutes);
 app.use('/api/antifraud', antifraudRoutes);
+app.use('/api/cashflow', cashflowRoutes);
+app.use('/api/settings', settingsRoutes);
+app.use('/api/addons', addonRoutes);
 
 // ─── 404 CATCH-ALL ─────────────────────────────────────────────────────────────
 

@@ -18,6 +18,9 @@ export default function SalesPage() {
   const [flags, setFlags] = useState<AntifraudFlag[]>([]);
   const [employees, setEmployees] = useState<User[]>([]);
   
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
+  
   const [isLoading, setIsLoading] = useState(true);
 
   // Modals
@@ -42,26 +45,29 @@ export default function SalesPage() {
     try {
       setIsLoading(true);
       const [salesRes, flagsRes] = await Promise.all([
-        apiGet<Sale[]>('/sales'),
-        isOwnerAdmin ? apiGet<AntifraudFlag[]>('/antifraud/flags?reviewed=false') : Promise.resolve({ success: true, data: [] }),
+        apiGet<any>(`/sales?page=${currentPage}&limit=50`),
+        isOwnerAdmin ? apiGet<AntifraudFlag[]>('/antifraud?reviewed=false') : Promise.resolve({ success: true, data: [] }),
       ]);
-      if (salesRes.success) setSales(salesRes.data);
+      if (salesRes.success) {
+        setSales(salesRes.data.data || []);
+        setTotalPages(salesRes.data.totalPages || 1);
+      }
       if (flagsRes.success && isOwnerAdmin) {
-        setFlags(flagsRes.data);
-        window.dispatchEvent(new CustomEvent('update-fraud-badge', { detail: flagsRes.data.length }));
+        setFlags(flagsRes.data as AntifraudFlag[]);
+        window.dispatchEvent(new CustomEvent('update-fraud-badge', { detail: (flagsRes.data as AntifraudFlag[]).length }));
       }
     } catch (err: unknown) {
       toast.error('Failed to fetch data');
     } finally {
       setIsLoading(false);
     }
-  }, [isOwnerAdmin]);
+  }, [isOwnerAdmin, currentPage]);
 
   const fetchEmployees = useCallback(async () => {
     if (!isOwnerAdmin) return;
     try {
-      const res = await apiGet<User[]>('/users');
-      if (res.success) setEmployees(res.data);
+      const res = await apiGet<{ data: User[] }>('/users');
+      if (res.success) setEmployees(res.data.data ?? []);
     } catch (err) {
       // ignore
     }
@@ -169,7 +175,7 @@ export default function SalesPage() {
       key: 'marginAmount',
       label: 'Margin',
       render: (val, row: Sale) => (
-        <span className="text-emerald-400">
+        <span className="text-[#22c55e]">
           ₹{Number(val).toLocaleString('en-IN')} ({Number(row.marginPercent).toFixed(1)}%)
         </span>
       ),
@@ -177,10 +183,11 @@ export default function SalesPage() {
   }
 
   const isPriceValid = selectedProduct && formData.unitPrice >= selectedProduct.minSellingPrice && formData.unitPrice <= selectedProduct.maxSellingPrice;
-  const priceColor = !selectedProduct ? 'text-white' : isPriceValid ? 'text-emerald-400' : 'text-red-400';
+  const priceColor = !selectedProduct ? 'text-white' : isPriceValid ? 'text-[#22c55e]' : 'text-[#ef4444]';
+  const inputClasses = "input";
 
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-[#f8fafc]">
+    <div className="flex-1 overflow-auto p-8 space-y-6">
       <PageHeader
         title="Point of Sale"
         subtitle="Record new sales and view transaction history"
@@ -189,28 +196,30 @@ export default function SalesPage() {
       />
 
       {isOwnerAdmin && flags.length > 0 && (
-        <div className="mb-8 space-y-4">
+        <div className="space-y-4">
           {flags.map(flag => (
-            <div key={flag.id} className="flex items-center justify-between rounded-lg bg-red-500/20 border border-red-500/50 p-4">
-              <div className="flex items-center gap-3">
-                <AlertTriangle className="text-red-400" size={24} />
+            <div key={flag.id} className="flex items-center justify-between rounded-xl bg-red-500/5 border border-red-500/20 p-4">
+              <div className="flex items-center gap-4">
+                <div className="bg-red-500/10 p-2 rounded-lg">
+                  <AlertTriangle className="text-[#ef4444]" size={20} />
+                </div>
                 <div>
-                  <p className="font-semibold text-red-400">
-                    Fraud Alert: {flag.user?.fullName} - {flag.product?.name}
+                  <p className="font-semibold text-white text-sm">
+                    Fraud Alert: <span className="font-normal text-[#a1a1aa]">{flag.user?.fullName} - {flag.product?.name}</span>
                   </p>
-                  <p className="text-sm text-red-300">
-                    Type: {flag.flagType} | Consecutive: {flag.consecutiveCount}
+                  <p className="text-xs text-[#ef4444] mt-1 uppercase tracking-wide">
+                    Type: {flag.flagType} • Consecutive: {flag.consecutiveCount}
                   </p>
                 </div>
               </div>
               <div className="flex items-center gap-3">
                 <button
                   onClick={() => { setReviewingFlag(flag); setReviewNotes(''); }}
-                  className="rounded bg-red-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-red-700"
+                  className="bg-transparent border border-white/5 hover:border-[#ef4444] text-[#a1a1aa] hover:text-[#ef4444] text-xs font-medium px-3 py-1.5 rounded-lg transition-colors duration-150"
                 >
                   Review
                 </button>
-                <button onClick={() => dismissFlag(flag.id)} className="text-red-400 hover:text-red-300">
+                <button onClick={() => dismissFlag(flag.id)} className="text-[#52525b] hover:text-white transition-colors">
                   <X size={20} />
                 </button>
               </div>
@@ -219,19 +228,30 @@ export default function SalesPage() {
         </div>
       )}
 
-      <div>
-        <h3 className="mb-4 text-sm font-bold tracking-wide text-[#f8fafc]">Recent Transactions</h3>
+      <div className="glass-card overflow-hidden">
+        <div className="p-6 bg-white/5 border-b border-white/5">
+          <h3 className="text-sm font-medium text-[#a1a1aa] uppercase tracking-wider">Recent Transactions</h3>
+        </div>
         {isLoading ? (
-          <div className="py-12 text-center text-slate-400">Loading sales...</div>
+          <div className="py-12 text-center text-[#52525b] text-sm">Loading sales...</div>
         ) : (
-          <DataTable columns={columns} data={sales} emptyMessage="No sales recorded." />
+          <DataTable 
+            columns={columns} 
+            data={sales} 
+            emptyMessage="No sales recorded." 
+            pagination={{
+              currentPage,
+              totalPages,
+              onPageChange: (page) => setCurrentPage(page)
+            }}
+          />
         )}
       </div>
 
       <Modal isOpen={isRecordSaleOpen} onClose={() => setIsRecordSaleOpen(false)} title="Record New Sale" size="lg">
-        <form onSubmit={handleRecordSale} className="space-y-6">
+        <form onSubmit={handleRecordSale} className="space-y-4">
           <div className="relative">
-            <label className="mb-1 block text-xs font-semibold text-slate-400">Product Search</label>
+            <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Product Search</label>
             {!selectedProduct ? (
               <>
                 <input
@@ -239,19 +259,19 @@ export default function SalesPage() {
                   placeholder="Type to search products..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                  className={inputClasses}
                 />
-                {isSearching && <div className="absolute right-3 top-8 text-xs text-slate-400">Searching...</div>}
+                {isSearching && <div className="absolute right-3 top-8 text-xs text-[#52525b]">Searching...</div>}
                 {searchResults.length > 0 && (
-                  <div className="absolute z-10 w-full mt-1 max-h-60 overflow-y-auto rounded-lg border border-[#334155] bg-[#1e293b] shadow-lg">
+                  <div className="absolute z-10 w-full mt-2 max-h-60 overflow-y-auto rounded-lg border border-white/5 glass-panel shadow-2xl">
                     {searchResults.map(p => (
                       <div
                         key={p.id}
                         onClick={() => handleSelectProduct(p)}
-                        className="cursor-pointer border-b border-[#334155] px-4 py-2 hover:bg-[#0f172a]"
+                        className="cursor-pointer border-b border-white/5 last:border-0 px-4 py-3 hover:bg-[#1f1f1f] transition-colors"
                       >
-                        <div className="font-semibold text-white">{p.name}</div>
-                        <div className="flex gap-4 text-xs text-slate-400">
+                        <div className="font-medium text-white text-sm">{p.name}</div>
+                        <div className="flex gap-4 text-xs text-[#a1a1aa] mt-1 uppercase tracking-wide">
                           <span>Stock: {p.currentStock}</span>
                           <span>Price Range: ₹{p.minSellingPrice.toLocaleString('en-IN')} - ₹{p.maxSellingPrice.toLocaleString('en-IN')}</span>
                         </div>
@@ -261,12 +281,12 @@ export default function SalesPage() {
                 )}
               </>
             ) : (
-              <div className="flex items-center justify-between rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2">
+              <div className="flex items-center justify-between rounded-lg border border-white/5 bg-[#0a0e14] px-4 py-3">
                 <div>
-                  <div className="font-semibold text-white">{selectedProduct.name}</div>
-                  <div className="text-xs text-slate-400">Stock: {selectedProduct.currentStock} | Min: ₹{selectedProduct.minSellingPrice.toLocaleString('en-IN')} | Max: ₹{selectedProduct.maxSellingPrice.toLocaleString('en-IN')}</div>
+                  <div className="font-medium text-white text-sm">{selectedProduct.name}</div>
+                  <div className="text-xs text-[#a1a1aa] mt-1 uppercase tracking-wide">Stock: {selectedProduct.currentStock} • Min: ₹{selectedProduct.minSellingPrice.toLocaleString('en-IN')} • Max: ₹{selectedProduct.maxSellingPrice.toLocaleString('en-IN')}</div>
                 </div>
-                <button type="button" onClick={() => setSelectedProduct(null)} className="text-slate-400 hover:text-white">
+                <button type="button" onClick={() => setSelectedProduct(null)} className="text-[#52525b] hover:text-white transition-colors">
                   <X size={16} />
                 </button>
               </div>
@@ -275,18 +295,18 @@ export default function SalesPage() {
 
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-400">Quantity</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Quantity</label>
               <input
                 type="number"
                 min="1"
                 required
                 value={formData.quantity}
                 onChange={(e) => setFormData({ ...formData, quantity: parseInt(e.target.value, 10) || 0 })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-400">Unit Price (₹)</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Unit Price (₹)</label>
               <input
                 type="number"
                 min="0"
@@ -294,21 +314,21 @@ export default function SalesPage() {
                 required
                 value={formData.unitPrice}
                 onChange={(e) => setFormData({ ...formData, unitPrice: Number(e.target.value) })}
-                className={`w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm outline-none focus:border-blue-500 ${priceColor}`}
+                className={`w-full bg-[#0a0e14] border border-white/5 rounded-lg px-3 py-2 text-sm focus:outline-none focus:border-[#0070f3] transition-colors duration-150 ${priceColor}`}
               />
               {selectedProduct && !isPriceValid && (
-                <p className="mt-1 text-xs text-red-400">Price is outside allowed range!</p>
+                <p className="mt-1.5 text-xs text-[#ef4444]">Price is outside allowed range!</p>
               )}
             </div>
           </div>
 
           {isOwnerAdmin && (
             <div>
-              <label className="mb-1 block text-xs font-semibold text-slate-400">Employee</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Employee</label>
               <select
                 value={formData.userId}
                 onChange={(e) => setFormData({ ...formData, userId: e.target.value })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white focus:border-blue-500 outline-none"
+                className={inputClasses}
               >
                 {employees.map(emp => (
                   <option key={emp.id} value={emp.id}>{emp.fullName}</option>
@@ -318,17 +338,17 @@ export default function SalesPage() {
           )}
 
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-400">Notes (Optional)</label>
+            <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Notes (Optional)</label>
             <textarea
               value={formData.notes}
               onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-              className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white focus:border-blue-500 outline-none min-h-[80px]"
+              className={`${inputClasses} min-h-[80px]`}
             />
           </div>
 
-          <div className="flex justify-end gap-3 pt-4 border-t border-[#334155]">
-            <button type="button" onClick={() => setIsRecordSaleOpen(false)} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-[#334155]">Cancel</button>
-            <button type="submit" className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white hover:bg-blue-700">Confirm Sale</button>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setIsRecordSaleOpen(false)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="btn btn-primary">Confirm Sale</button>
           </div>
         </form>
       </Modal>
@@ -336,18 +356,18 @@ export default function SalesPage() {
       <Modal isOpen={!!reviewingFlag} onClose={() => setReviewingFlag(null)} title="Review Fraud Flag">
         <form onSubmit={handleReviewFlag} className="space-y-4">
           <div>
-            <label className="mb-1 block text-xs font-semibold text-slate-400">Review Notes</label>
+            <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Review Notes</label>
             <textarea
               required
               value={reviewNotes}
               onChange={(e) => setReviewNotes(e.target.value)}
-              className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-white focus:border-blue-500 outline-none min-h-[100px]"
+              className={`${inputClasses} min-h-[100px]`}
               placeholder="Enter explanation and actions taken..."
             />
           </div>
-          <div className="flex justify-end gap-3 pt-4">
-            <button type="button" onClick={() => setReviewingFlag(null)} className="rounded-lg px-4 py-2 text-sm text-slate-300 hover:bg-[#334155]">Cancel</button>
-            <button type="submit" className="rounded-lg bg-red-600 px-4 py-2 text-sm font-semibold text-white hover:bg-red-700">Submit Review</button>
+          <div className="flex justify-end gap-2 pt-2">
+            <button type="button" onClick={() => setReviewingFlag(null)} className="btn btn-secondary">Cancel</button>
+            <button type="submit" className="bg-transparent border border-white/5 hover:border-red-800 text-[#a1a1aa] hover:text-[#ef4444] text-sm font-medium px-4 py-2 rounded-lg transition-colors duration-150">Submit Review</button>
           </div>
         </form>
       </Modal>

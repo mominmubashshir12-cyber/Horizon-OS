@@ -3,8 +3,10 @@
 import { Router, Request, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
+import { z } from 'zod';
 import { prisma } from '../lib/prisma';
 import { config } from '../config';
+import { validateBody } from '../middleware/validateBody';
 import {
   ApiResponse,
   LoginRequest,
@@ -23,19 +25,14 @@ const router = Router();
  * Authenticates a user by username + password and returns a JWT access/refresh
  * token pair along with basic user info.
  */
-router.post('/login', async (req: Request, res: Response): Promise<void> => {
+const loginSchema = z.object({
+  username: z.string().min(1),
+  password: z.string().min(1),
+});
+
+router.post('/login', validateBody(loginSchema), async (req: Request, res: Response): Promise<void> => {
   try {
     const { username, password } = req.body as LoginRequest;
-
-    if (!username || !password) {
-      const response: ApiResponse<null> = {
-        success: false,
-        data: null,
-        message: 'Username and password are required',
-      };
-      res.status(400).json(response);
-      return;
-    }
 
     // Look up user
     const user = await prisma.user.findUnique({
@@ -116,19 +113,13 @@ router.post('/login', async (req: Request, res: Response): Promise<void> => {
  *
  * Accepts a valid refresh token and issues a fresh access token.
  */
-router.post('/refresh', async (req: Request, res: Response): Promise<void> => {
+const refreshSchema = z.object({
+  refreshToken: z.string().min(1),
+});
+
+router.post('/refresh', validateBody(refreshSchema), async (req: Request, res: Response): Promise<void> => {
   try {
     const { refreshToken } = req.body as RefreshRequest;
-
-    if (!refreshToken) {
-      const response: ApiResponse<null> = {
-        success: false,
-        data: null,
-        message: 'Refresh token is required',
-      };
-      res.status(400).json(response);
-      return;
-    }
 
     // Verify the refresh token
     const decoded = jwt.verify(refreshToken, config.jwtRefreshSecret) as TokenPayload;

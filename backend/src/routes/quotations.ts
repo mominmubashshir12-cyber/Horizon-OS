@@ -6,6 +6,40 @@ import { AuthenticatedRequest, ApiResponse } from '../types';
 
 const router = Router();
 const prisma = new PrismaClient();
+import { z } from 'zod';
+import { validateBody } from '../middleware/validateBody';
+
+const quotationItemSchema = z.object({
+  desc: z.string().optional(),
+  qty: z.number().optional(),
+  unitPrice: z.number().optional(),
+  taxPercent: z.number().optional(),
+  productId: z.number().optional().nullable(),
+});
+
+const createQuotationSchema = z.object({
+  clientName: z.string(),
+  clientPhone: z.string().optional().nullable(),
+  clientAddress: z.string().optional().nullable(),
+  validityDays: z.number().optional(),
+  items: z.array(quotationItemSchema).optional(),
+  notes: z.string().optional().nullable(),
+  assignedToId: z.number().optional().nullable(),
+});
+
+const updateQuotationSchema = z.object({
+  clientName: z.string().optional(),
+  clientPhone: z.string().optional().nullable(),
+  clientAddress: z.string().optional().nullable(),
+  validityDays: z.number().optional(),
+  items: z.array(quotationItemSchema).optional(),
+  notes: z.string().optional().nullable(),
+  assignedToId: z.number().optional().nullable(),
+});
+
+const updateQuotationStatusSchema = z.object({
+  status: z.string()
+});
 
 router.use(authenticateToken);
 
@@ -32,19 +66,30 @@ router.get('/', async (req: AuthenticatedRequest, res: Response, next: NextFunct
       ];
     }
 
-    const quotations = await prisma.quotation.findMany({
-      where,
-      orderBy: { createdAt: 'desc' }
-    });
+    const page = parseInt(req.query.page as string || '1', 10);
+    const limit = parseInt(req.query.limit as string || '50', 10);
+    const skip = (page - 1) * limit;
 
-    res.json({ success: true, data: quotations, message: 'Quotations fetched' });
+    const [quotations, total] = await Promise.all([
+      prisma.quotation.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { createdAt: 'desc' }
+      }),
+      prisma.quotation.count({ where })
+    ]);
+    
+    const totalPages = Math.ceil(total / limit);
+
+    res.json({ success: true, data: { data: quotations, total, page, limit, totalPages }, message: 'Quotations fetched' });
   } catch (error) {
     next(error);
   }
 });
 
 // POST /api/quotations
-router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+router.post('/', validateBody(createQuotationSchema), async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
     const { clientName, clientPhone, clientAddress, validityDays = 15, items, notes, assignedToId } = req.body;
     
@@ -109,7 +154,7 @@ router.post('/', async (req: AuthenticatedRequest, res: Response, next: NextFunc
 // GET /api/quotations/:id
 router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
     
     if (!quotation) {
@@ -130,9 +175,9 @@ router.get('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
 });
 
 // PUT /api/quotations/:id
-router.put('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+router.put('/:id', validateBody(updateQuotationSchema), async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
     
     if (!quotation) {
@@ -204,9 +249,9 @@ router.put('/:id', async (req: AuthenticatedRequest, res: Response, next: NextFu
 });
 
 // PUT /api/quotations/:id/status
-router.put('/:id/status', requireOwner, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+router.put('/:id/status', requireOwner, validateBody(updateQuotationStatusSchema), async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const { status } = req.body;
     const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
     
@@ -248,7 +293,7 @@ router.put('/:id/status', requireOwner, async (req: AuthenticatedRequest, res: R
 // DELETE /api/quotations/:id
 router.delete('/:id', requireOwner, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
     
     if (!quotation) {
@@ -272,7 +317,7 @@ router.delete('/:id', requireOwner, async (req: AuthenticatedRequest, res: Respo
 // GET /api/quotations/:id/pdf-data
 router.get('/:id/pdf-data', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
     
     if (!quotation) {
@@ -313,7 +358,7 @@ router.get('/:id/pdf-data', async (req: AuthenticatedRequest, res: Response, nex
 // POST /api/quotations/:id/convert
 router.post('/:id/convert', requireOwner, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const id = parseInt(req.params.id, 10);
+    const id = parseInt(req.params.id as string, 10);
     const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
     
     if (!quotation) {
@@ -380,6 +425,65 @@ router.post('/:id/convert', requireOwner, async (req: AuthenticatedRequest, res:
     const updated = await prisma.quotation.findUnique({ where: { id } });
 
     res.json({ success: true, data: updated, message: 'Quotation converted to sales' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/quotations/:id/convert-to-job
+router.post('/:id/convert-to-job', requireOwner, async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    const quotation = await prisma.quotation.findUnique({ where: { id, firmId: req.user!.firmId } });
+    
+    if (!quotation) {
+      res.status(404).json({ success: false, data: null, message: 'Not found' });
+      return;
+    }
+
+    if (quotation.status !== 'ACCEPTED') {
+      res.status(400).json({ success: false, data: null, message: 'Can only convert ACCEPTED quotations' });
+      return;
+    }
+
+    const year = new Date().getFullYear();
+    const count = await prisma.jobCard.count({
+      where: { firmId: req.user!.firmId, jobNumber: { startsWith: `JB-${year}-` } }
+    });
+    const jobNumber = `JB-${year}-${String(count + 1).padStart(3, '0')}`;
+    
+    // items to string for equipmentNotes
+    let notes = '';
+    try {
+      const items = JSON.parse(quotation.items);
+      notes = items.map((i: any) => `${i.qty}x ${i.desc}`).join('\n');
+    } catch(e) {}
+
+    await prisma.$transaction(async (tx) => {
+      await tx.jobCard.create({
+        data: {
+          jobNumber,
+          clientName: quotation.clientName,
+          clientPhone: quotation.clientPhone,
+          siteAddress: quotation.clientAddress,
+          jobType: 'NEW_INSTALL', // Defaulting to new install for converted quotes
+          equipmentNotes: notes,
+          scheduledDate: new Date(),
+          status: 'UNASSIGNED',
+          createdById: req.user!.userId,
+          firmId: req.user!.firmId
+        }
+      });
+
+      await tx.quotation.update({
+        where: { id },
+        data: {
+          status: 'CONVERTED'
+        }
+      });
+    });
+
+    res.json({ success: true, data: null, message: 'Quotation converted to Job Card successfully' });
   } catch (error) {
     next(error);
   }

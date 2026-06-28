@@ -19,7 +19,7 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" className={`dark ${montserrat.variable}`}>
+    <html lang="en" className={`dark ${montserrat.variable}`} suppressHydrationWarning>
       <body className="font-sans">
         <AuthProvider>
           {children}

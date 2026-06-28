@@ -43,7 +43,12 @@ export default function JobCard({ job, onPress, showAssignee = false }: JobCardP
         <Text className="text-blue-400 font-bold text-base">
           {job.jobNumber}
         </Text>
-        <StatusBadge status={job.status} size="sm" />
+        <View className="flex-row gap-1">
+          <StatusBadge status={job.status} size="sm" />
+          {job.isOverdue && job.status !== 'COMPLETED' && job.status !== 'VERIFIED' && (
+            <StatusBadge status="OVERDUE" size="sm" />
+          )}
+        </View>
       </View>
 
       {/* Client Name */}
@@ -69,11 +74,11 @@ export default function JobCard({ job, onPress, showAssignee = false }: JobCardP
           </Text>
         </View>
 
-        {showAssignee && job.assignedTo?.fullName ? (
+        {showAssignee && job.assignedEmployees && job.assignedEmployees.length > 0 ? (
           <View className="flex-row items-center">
             <Clock size={14} color="#94a3b8" />
-            <Text className="text-slate-400 text-xs ml-2">
-              Assigned to: {job.assignedTo.fullName}
+            <Text className="text-slate-400 text-xs ml-2" numberOfLines={1}>
+              Assigned to: {job.assignedEmployees.map(e => e.fullName).join(', ')}
             </Text>
           </View>
         ) : null}

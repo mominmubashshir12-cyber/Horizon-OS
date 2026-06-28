@@ -18,10 +18,11 @@ export default function LoadingSpinner({ size = 'md', message }: LoadingSpinnerP
   return (
     <div className="flex flex-col items-center justify-center gap-3 py-12">
       <div
-        className={`${SIZE_MAP[size]} animate-spin-slow rounded-full border-[#334155] border-t-[#2563eb]`}
+        className={`${SIZE_MAP[size]} animate-spin-slow rounded-full`}
+        style={{ borderColor: 'var(--color-border-bright)', borderTopColor: 'var(--color-brand-primary)' }}
       />
       {message && (
-        <p className="text-sm text-[#94a3b8]">{message}</p>
+        <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>{message}</p>
       )}
     </div>
   );

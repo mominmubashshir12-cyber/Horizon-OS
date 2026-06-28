@@ -16,13 +16,19 @@ interface DataTableProps<T> {
   data: T[];
   onRowClick?: (row: T) => void;
   emptyMessage?: string;
+  pagination?: {
+    currentPage: number;
+    totalPages: number;
+    onPageChange: (page: number) => void;
+  };
 }
 
-export default function DataTable<T extends Record<string, unknown>>({
+export default function DataTable<T>({
   columns,
   data,
   onRowClick,
   emptyMessage = 'No data available',
+  pagination,
 }: DataTableProps<T>) {
   const [sortKey, setSortKey] = useState<string | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
@@ -40,8 +46,8 @@ export default function DataTable<T extends Record<string, unknown>>({
     if (!sortKey) return data;
 
     return [...data].sort((a, b) => {
-      const aVal = a[sortKey];
-      const bVal = b[sortKey];
+      const aVal = a[sortKey as keyof T] as any;
+      const bVal = b[sortKey as keyof T] as any;
 
       if (aVal == null && bVal == null) return 0;
       if (aVal == null) return 1;
@@ -61,26 +67,27 @@ export default function DataTable<T extends Record<string, unknown>>({
   }, [data, sortKey, sortDirection]);
 
   const getSortIcon = (key: string) => {
-    if (sortKey !== key) return <ChevronsUpDown size={14} className="text-[#94a3b8] opacity-50" />;
+    if (sortKey !== key) return <ChevronsUpDown size={14} className="text-[#52525b]" />;
     return sortDirection === 'asc' ? (
-      <ChevronUp size={14} className="text-[#2563eb]" />
+      <ChevronUp size={14} className="text-[#0070f3]" />
     ) : (
-      <ChevronDown size={14} className="text-[#2563eb]" />
+      <ChevronDown size={14} className="text-[#0070f3]" />
     );
   };
 
   return (
-    <div className="overflow-hidden rounded-xl border border-[#334155]">
+    <div className="overflow-hidden rounded-xl" style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-base)' }}>
       <div className="overflow-x-auto">
-        <table className="w-full">
+        <table className="w-full text-left">
           <thead>
-            <tr className="border-b border-[#334155] bg-[#1e293b]">
+            <tr className="border-b" style={{ borderColor: 'var(--color-border-base)', background: 'var(--color-surface-highlight)' }}>
               {columns.map((col) => (
                 <th
                   key={col.key}
-                  className={`px-4 py-3 text-left text-xs font-semibold uppercase tracking-wider text-[#94a3b8] ${
-                    col.sortable ? 'cursor-pointer select-none hover:text-[#f8fafc]' : ''
+                  className={`px-4 py-3 text-xs font-medium uppercase tracking-wider ${
+                    col.sortable ? 'cursor-pointer select-none' : ''
                   }`}
+                  style={{ color: 'var(--color-text-tertiary)' }}
                   onClick={col.sortable ? () => handleSort(col.key) : undefined}
                 >
                   <div className="flex items-center gap-1.5">
@@ -91,12 +98,13 @@ export default function DataTable<T extends Record<string, unknown>>({
               ))}
             </tr>
           </thead>
-          <tbody className="divide-y divide-[#334155]">
+          <tbody>
             {sortedData.length === 0 ? (
               <tr>
                 <td
                   colSpan={columns.length}
-                  className="px-4 py-12 text-center text-sm text-[#94a3b8]"
+                  className="px-4 py-12 text-center text-sm"
+                  style={{ color: 'var(--color-text-secondary)' }}
                 >
                   {emptyMessage}
                 </td>
@@ -105,16 +113,23 @@ export default function DataTable<T extends Record<string, unknown>>({
               sortedData.map((row, idx) => (
                 <tr
                   key={idx}
-                  className={`bg-[#0f172a] transition-colors hover:bg-[#1e293b]/50 ${
+                  className={`border-b transition-colors duration-100 ${
                     onRowClick ? 'cursor-pointer' : ''
                   }`}
+                  style={{ borderColor: 'var(--color-border-base)' }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'var(--color-surface-hover)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                   onClick={onRowClick ? () => onRowClick(row) : undefined}
                 >
-                  {columns.map((col) => (
-                    <td key={col.key} className="px-4 py-3 text-sm text-[#f8fafc]">
+                  {columns.map((col, colIdx) => (
+                    <td 
+                      key={col.key} 
+                      className={`px-4 py-3 text-sm ${colIdx === 0 ? 'font-medium' : ''}`}
+                      style={{ color: colIdx === 0 ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}
+                    >
                       {col.render
-                        ? col.render(row[col.key], row)
-                        : (row[col.key] as React.ReactNode) ?? '—'}
+                        ? col.render(row[col.key as keyof T], row)
+                        : (row[col.key as keyof T] as React.ReactNode) ?? '—'}
                     </td>
                   ))}
                 </tr>
@@ -123,6 +138,32 @@ export default function DataTable<T extends Record<string, unknown>>({
           </tbody>
         </table>
       </div>
+      
+      {pagination && pagination.totalPages > 1 && (
+        <div className="flex items-center justify-between px-4 py-3 border-t" style={{ borderColor: 'var(--color-border-base)', background: 'var(--color-surface-highlight)' }}>
+          <span className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
+            Page {pagination.currentPage} of {pagination.totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => pagination.onPageChange(pagination.currentPage - 1)}
+              disabled={pagination.currentPage <= 1}
+              className="px-3 py-1 text-sm rounded-md border disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ borderColor: 'var(--color-border-base)', color: 'var(--color-text-primary)' }}
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => pagination.onPageChange(pagination.currentPage + 1)}
+              disabled={pagination.currentPage >= pagination.totalPages}
+              className="px-3 py-1 text-sm rounded-md border disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+              style={{ borderColor: 'var(--color-border-base)', color: 'var(--color-text-primary)' }}
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

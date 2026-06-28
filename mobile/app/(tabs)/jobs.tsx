@@ -12,6 +12,7 @@ import { useNetwork } from '../../contexts/NetworkContext';
 import { apiGet } from '../../services/api';
 import { saveOffline, getOffline } from '../../services/offline';
 import type { JobCard as JobCardType } from '../../types';
+import CheckInGuard from '../../components/CheckInGuard';
 
 export default function JobsScreen(): React.JSX.Element {
   const router = useRouter();
@@ -37,10 +38,11 @@ export default function JobsScreen(): React.JSX.Element {
       try {
         const res = await apiGet<JobCardType[]>('/jobcards');
         if (res.success) {
-          setJobs(res.data);
+          const jobsData = (res.data as any).data ?? res.data;
+          setJobs(jobsData);
           setIsOfflineData(false);
           // Cache to offline storage
-          await saveOffline('jobs', res.data);
+          await saveOffline('jobs', jobsData);
         }
       } catch (err) {
         console.warn('[JobsList] Online fetch failed, trying cache:', err);
@@ -110,72 +112,74 @@ export default function JobsScreen(): React.JSX.Element {
   );
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0f172a]" edges={['bottom']}>
-      {/* Offline Status Badge */}
-      {isOfflineData && (
-        <View className="bg-slate-800 border-b border-slate-700 py-1.5 px-4 flex-row items-center justify-center">
-          <WifiOff size={14} color="#94a3b8" />
-          <Text className="text-slate-400 text-xs font-semibold ml-1.5">
-            Viewing cached offline data
-          </Text>
-        </View>
-      )}
-
-      {/* Owner/Admin Filter Tab Bar */}
-      {isOwnerAdmin && (
-        <View className="flex-row border-b border-[#334155] bg-[#0f172a] p-2">
-          {(['ALL', 'ACTIVE', 'COMPLETED'] as const).map((tab) => {
-            const isActive = filterTab === tab;
-            return (
-              <View
-                key={tab}
-                className={`flex-1 rounded-lg py-2.5 mx-1 items-center justify-center ${
-                  isActive ? 'bg-[#2563eb]' : 'bg-[#1e293b]'
-                }`}
-                style={{ elevation: isActive ? 2 : 0 }}
-                onTouchEnd={() => setFilterTab(tab)}
-              >
-                <Text
-                  className={`text-xs font-bold ${
-                    isActive ? 'text-white' : 'text-slate-400'
-                  }`}
-                >
-                  {tab}
-                </Text>
-              </View>
-            );
-          })}
-        </View>
-      )}
-
-      {/* Jobs FlatList */}
-      <FlatList
-        data={filteredJobs}
-        keyExtractor={(item) => String(item.id)}
-        renderItem={renderItem}
-        contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={() => loadJobs(true)}
-            tintColor="#2563eb"
-            colors={['#2563eb']}
-          />
-        }
-        ListEmptyComponent={
-          <View className="items-center justify-center py-20 px-8">
-            <View className="bg-slate-800 rounded-full p-4 mb-4">
-              <ClipboardList size={36} color="#64748b" />
-            </View>
-            <Text className="text-slate-50 font-semibold text-lg text-center mb-1">
-              No jobs assigned
-            </Text>
-            <Text className="text-slate-400 text-sm text-center">
-              Pull down to refresh or check back later.
+    <CheckInGuard>
+      <SafeAreaView className="flex-1 bg-[#0f172a]" edges={['bottom']}>
+        {/* Offline Status Badge */}
+        {isOfflineData && (
+          <View className="bg-slate-800 border-b border-slate-700 py-1.5 px-4 flex-row items-center justify-center">
+            <WifiOff size={14} color="#94a3b8" />
+            <Text className="text-slate-400 text-xs font-semibold ml-1.5">
+              Viewing cached offline data
             </Text>
           </View>
-        }
-      />
-    </SafeAreaView>
+        )}
+
+        {/* Owner/Admin Filter Tab Bar */}
+        {isOwnerAdmin && (
+          <View className="flex-row border-b border-[#334155] bg-[#0f172a] p-2">
+            {(['ALL', 'ACTIVE', 'COMPLETED'] as const).map((tab) => {
+              const isActive = filterTab === tab;
+              return (
+                <View
+                  key={tab}
+                  className={`flex-1 rounded-lg py-2.5 mx-1 items-center justify-center ${
+                    isActive ? 'bg-[#2563eb]' : 'bg-[#1e293b]'
+                  }`}
+                  style={{ elevation: isActive ? 2 : 0 }}
+                  onTouchEnd={() => setFilterTab(tab)}
+                >
+                  <Text
+                    className={`text-xs font-bold ${
+                      isActive ? 'text-white' : 'text-slate-400'
+                    }`}
+                  >
+                    {tab}
+                  </Text>
+                </View>
+              );
+            })}
+          </View>
+        )}
+
+        {/* Jobs FlatList */}
+        <FlatList
+          data={filteredJobs}
+          keyExtractor={(item) => String(item.id)}
+          renderItem={renderItem}
+          contentContainerStyle={{ padding: 16, paddingBottom: 32 }}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={() => loadJobs(true)}
+              tintColor="#2563eb"
+              colors={['#2563eb']}
+            />
+          }
+          ListEmptyComponent={
+            <View className="items-center justify-center py-20 px-8">
+              <View className="bg-slate-800 rounded-full p-4 mb-4">
+                <ClipboardList size={36} color="#64748b" />
+              </View>
+              <Text className="text-slate-50 font-semibold text-lg text-center mb-1">
+                No jobs assigned
+              </Text>
+              <Text className="text-slate-400 text-sm text-center">
+                Pull down to refresh or check back later.
+              </Text>
+            </View>
+          }
+        />
+      </SafeAreaView>
+    </CheckInGuard>
   );
 }

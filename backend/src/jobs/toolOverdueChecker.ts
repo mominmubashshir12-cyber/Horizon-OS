@@ -1,18 +1,18 @@
+import cron from 'node-cron';
 import { prisma } from '../lib/prisma';
+import { createAlert } from '../services/alertService';
 
 export async function runToolOverdueChecker(): Promise<void> {
   console.log('[ToolOverdueChecker] Scanning for overdue tool issuances...');
 
-  const oneDayAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const now = new Date();
 
   const overdueIssuances = await prisma.toolIssuance.findMany({
     where: {
       status: 'ISSUED',
-      issuedAt: { lt: oneDayAgo },
+      expectedReturnDate: { lt: now },
       returnedAt: null,
-      tool: {
-        currentHolderId: { not: null }
-      }
+      custodyLocation: { not: 'HOME' }
     },
     include: {
       tool: true,
@@ -21,36 +21,45 @@ export async function runToolOverdueChecker(): Promise<void> {
   });
 
   for (const issuance of overdueIssuances) {
-    await prisma.$transaction(async (tx) => {
-      await tx.toolIssuance.update({
-        where: { id: issuance.id },
-        data: { status: 'OVERDUE' }
-      });
-
-      const existingAlert = await tx.systemAlert.findFirst({
-        where: {
-          type: 'TOOL_OVERDUE',
-          relatedEntity: 'ToolIssuance',
-          relatedId: issuance.id,
-          isDismissed: false
-        }
-      });
-
-      if (!existingAlert) {
-        await tx.systemAlert.create({
-          data: {
-            type: 'TOOL_OVERDUE',
-            severity: 'WARNING',
-            title: 'Tool Overdue Alert',
-            message: `Tool ${issuance.tool.name} (${issuance.tool.toolCode}) issued to ${issuance.user.fullName} is overdue.`,
-            relatedEntity: 'ToolIssuance',
-            relatedId: issuance.id,
-            firmId: issuance.firmId
-          }
-        });
+    const existingAlert = await prisma.systemAlert.findFirst({
+      where: {
+        type: 'TOOL_OVERDUE',
+        relatedEntity: 'ToolIssuance',
+        relatedId: issuance.id,
+        isDismissed: false
       }
     });
+
+    if (!existingAlert) {
+      // Date displayed in IST format
+      const dateIST = issuance.expectedReturnDate!.toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+
+      await createAlert({
+        type: 'TOOL_OVERDUE',
+        severity: 'WARNING',
+        title: 'Tool Overdue Alert',
+        message: `Tool '${issuance.tool.name}' issued to ${issuance.user.fullName} is overdue for return since ${dateIST}.`,
+        relatedEntity: 'ToolIssuance',
+        relatedId: issuance.id,
+        targetUserId: issuance.userId,
+      }, issuance.firmId);
+    }
   }
 
   console.log(`[ToolOverdueChecker] Overdue tool check completed. Found ${overdueIssuances.length} overdue issuances.`);
+}
+
+/**
+ * Initializes the cron job to run every hour.
+ */
+export function initToolOverdueChecker(): void {
+  cron.schedule(
+    '0 * * * *',
+    async () => {
+      console.log('[Cron] Executing tool overdue checker (every hour)...');
+      await runToolOverdueChecker();
+    },
+    { scheduled: true }
+  );
+  console.log('[Cron] Tool overdue checker registered (every hour)');
 }

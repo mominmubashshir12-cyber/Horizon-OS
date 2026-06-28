@@ -15,6 +15,8 @@ export default function ProductsPage() {
   const isOwnerAdmin = user?.role === 'OWNER' || user?.role === 'ADMIN';
 
   const [products, setProducts] = useState<Product[]>([]);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [totalPages, setTotalPages] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
 
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -37,9 +39,10 @@ export default function ProductsPage() {
   const fetchProducts = useCallback(async () => {
     try {
       setIsLoading(true);
-      const res = await apiGet<Product[]>('/products');
+      const res = await apiGet<any>(`/products?page=${currentPage}&limit=50`);
       if (res.success) {
-        setProducts(res.data);
+        setProducts(res.data.data || []);
+        setTotalPages(res.data.totalPages || 1);
       }
     } catch (err: any) {
       toast.error(err.response?.data?.message || 'Failed to fetch products');
@@ -50,7 +53,7 @@ export default function ProductsPage() {
 
   useEffect(() => {
     fetchProducts();
-  }, [fetchProducts]);
+  }, [fetchProducts, currentPage]);
 
   const openCreateModal = () => {
     setFormMode('create');
@@ -91,7 +94,6 @@ export default function ProductsPage() {
     e.preventDefault();
     try {
       let res;
-      // Convert strings to numbers if needed, though input type="number" helps
       const payload = {
         ...formData,
         purchasePrice: Number(formData.purchasePrice),
@@ -146,10 +148,10 @@ export default function ProductsPage() {
       label: 'Actions',
       render: (_, row) => (
         <div className="flex gap-2">
-          <button onClick={() => openEditModal(row)} className="text-slate-400 hover:text-white">
+          <button onClick={() => openEditModal(row)} className="text-[#a1a1aa] hover:text-white transition-colors">
             <Edit2 size={16} />
           </button>
-          <button onClick={() => handleDelete(row.id)} className="text-red-400 hover:text-red-300">
+          <button onClick={() => handleDelete(row.id)} className="text-[#52525b] hover:text-[#ef4444] transition-colors">
             <Trash2 size={16} />
           </button>
         </div>
@@ -157,8 +159,10 @@ export default function ProductsPage() {
     });
   }
 
+  const inputClasses = "input";
+
   return (
-    <div className="min-h-screen bg-[#0f172a] p-6 text-[#f8fafc]">
+    <div className="flex-1 overflow-auto p-8 space-y-6">
       <PageHeader
         title="Products Catalog"
         subtitle="Manage inventory, pricing, and stock levels"
@@ -166,11 +170,22 @@ export default function ProductsPage() {
         onAction={isOwnerAdmin ? openCreateModal : undefined}
       />
 
-      {isLoading ? (
-        <div className="py-12 text-center text-slate-400">Loading products...</div>
-      ) : (
-        <DataTable columns={columns} data={products} emptyMessage="No products found." />
-      )}
+      <div className="glass-card overflow-hidden">
+        {isLoading ? (
+          <div className="py-12 text-center text-[#52525b] text-sm">Loading products...</div>
+        ) : (
+          <DataTable 
+            columns={columns} 
+            data={products} 
+            emptyMessage="No products found." 
+            pagination={{
+              currentPage,
+              totalPages,
+              onPageChange: setCurrentPage
+            }}
+          />
+        )}
+      </div>
 
       <Modal
         isOpen={isModalOpen}
@@ -181,94 +196,94 @@ export default function ProductsPage() {
         <form onSubmit={handleFormSubmit} className="space-y-4">
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Name</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Name</label>
               <input
                 type="text"
                 required
                 value={formData.name}
                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">SKU</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">SKU</label>
               <input
                 type="text"
                 required
                 value={formData.sku}
                 onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Category</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Category</label>
               <input
                 type="text"
                 required
                 value={formData.category}
                 onChange={(e) => setFormData({ ...formData, category: e.target.value })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Unit</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Unit</label>
               <input
                 type="text"
                 value={formData.unit}
                 onChange={(e) => setFormData({ ...formData, unit: e.target.value })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Current Stock</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Current Stock</label>
               <input
                 type="number"
                 required
                 value={formData.currentStock}
                 onChange={(e) => setFormData({ ...formData, currentStock: Number(e.target.value) })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Purchase Price</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Purchase Price</label>
               <input
                 type="number"
                 required
                 value={formData.purchasePrice}
                 onChange={(e) => setFormData({ ...formData, purchasePrice: Number(e.target.value) })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Min Selling Price</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Min Selling Price</label>
               <input
                 type="number"
                 required
                 value={formData.minSellingPrice}
                 onChange={(e) => setFormData({ ...formData, minSellingPrice: Number(e.target.value) })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
             <div>
-              <label className="mb-1 block text-xs font-semibold uppercase tracking-wider text-slate-400">Customer Retail Price</label>
+              <label className="mb-1.5 block text-xs font-medium text-[#a1a1aa]">Customer Retail Price</label>
               <input
                 type="number"
                 required
                 value={formData.customerPrice}
                 onChange={(e) => setFormData({ ...formData, customerPrice: Number(e.target.value) })}
-                className="w-full rounded-lg border border-[#334155] bg-[#0f172a] px-3 py-2 text-sm text-[#f8fafc] outline-none focus:border-[#2563eb]"
+                className={inputClasses}
               />
             </div>
           </div>
-          <div className="flex justify-end gap-2 border-t border-[#334155] pt-4">
+          <div className="flex justify-end gap-2 pt-4">
             <button
               type="button"
               onClick={() => setIsModalOpen(false)}
-              className="rounded-lg border border-[#334155] bg-transparent px-4 py-2 text-sm font-semibold text-[#94a3b8] hover:bg-[#0f172a] hover:text-[#f8fafc]"
+              className="btn btn-secondary"
             >
               Cancel
             </button>
-            <button type="submit" className="rounded-lg bg-[#2563eb] px-4 py-2 text-sm font-semibold text-white hover:bg-[#1d4ed8]">
+            <button type="submit" className="btn btn-primary">
               Save
             </button>
           </div>

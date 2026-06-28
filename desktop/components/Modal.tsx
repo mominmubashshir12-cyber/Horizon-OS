@@ -43,27 +43,29 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
       {/* Overlay */}
       <div
-        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
+        className="absolute inset-0 backdrop-blur-sm"
+        style={{ background: 'rgba(0,0,0,0.6)' }}
         onClick={onClose}
         aria-hidden="true"
       />
 
       {/* Modal Card */}
       <div
-        className={`relative w-full ${SIZE_CLASSES[size]} animate-fade-in rounded-xl border border-[#334155] bg-[#1e293b] shadow-2xl`}
+        className={`relative w-full ${SIZE_CLASSES[size]} mx-auto animate-fade-in`}
+        style={{ background: 'var(--color-surface)', border: '1px solid var(--color-border-base)', borderRadius: '16px', padding: '24px' }}
         role="dialog"
         aria-modal="true"
         aria-labelledby="modal-title"
       >
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-[#334155] px-6 py-4">
-          <h3 id="modal-title" className="text-lg font-semibold text-[#f8fafc]">
+        <div className="mb-6 flex items-center justify-between">
+          <h3 id="modal-title" className="text-lg font-semibold" style={{ color: 'var(--color-text-primary)' }}>
             {title}
           </h3>
           <button
             type="button"
             onClick={onClose}
-            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#94a3b8] transition-colors hover:bg-[#0f172a] hover:text-[#f8fafc]"
+            className="flex h-8 w-8 items-center justify-center rounded-lg text-[#52525b] transition-colors hover:text-white"
             aria-label="Close modal"
           >
             <X size={18} />
@@ -71,7 +73,7 @@ export default function Modal({ isOpen, onClose, title, children, size = 'md' }:
         </div>
 
         {/* Content */}
-        <div className="max-h-[70vh] overflow-y-auto px-6 py-4">
+        <div className="max-h-[70vh] overflow-y-auto">
           {children}
         </div>
       </div>

@@ -30,6 +30,9 @@ function getStatusColors(status: string): StatusColors {
   const normalized = status.toUpperCase();
 
   switch (normalized) {
+    case 'UNASSIGNED':
+      return { bg: 'bg-slate-800', text: 'text-slate-400' };
+
     case 'COMPLETED':
       return { bg: 'bg-green-900/50', text: 'text-green-400' };
     

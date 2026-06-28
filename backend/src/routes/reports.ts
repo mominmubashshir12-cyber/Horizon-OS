@@ -13,8 +13,8 @@ router.use(requireOwner);
 // GET /api/reports/employees/:year/:month
 router.get('/employees/:year/:month', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const year = parseInt(req.params.year, 10);
-    const month = parseInt(req.params.month, 10);
+    const year = parseInt(req.params.year as string, 10);
+    const month = parseInt(req.params.month as string, 10);
     const firmId = req.user!.firmId;
 
     const reports = await prisma.performanceReport.findMany({
@@ -33,15 +33,15 @@ router.get('/employees/:year/:month', async (req: AuthenticatedRequest, res: Res
 // GET /api/reports/inventory/:year/:month
 router.get('/inventory/:year/:month', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const year = parseInt(req.params.year, 10);
-    const month = parseInt(req.params.month, 10);
+    const year = parseInt(req.params.year as string, 10);
+    const month = parseInt(req.params.month as string, 10);
     const firmId = req.user!.firmId;
 
     const start = new Date(year, month - 1, 1);
     const end = new Date(year, month, 0, 23, 59, 59, 999);
 
     const products = await prisma.product.findMany({ where: { firmId } });
-    const materials = await prisma.consumableMaterial.findMany({ where: { firmId } });
+    const materials = await prisma.product.findMany({ where: { firmId } });
     
     let currentStockValue = 0;
     products.forEach(p => { currentStockValue += p.currentStock * p.purchasePrice; });
@@ -49,14 +49,14 @@ router.get('/inventory/:year/:month', async (req: AuthenticatedRequest, res: Res
 
     const materialLogs = await prisma.materialUsageLog.findMany({
       where: { firmId, takenAt: { gte: start, lte: end } },
-      include: { material: true }
+      include: { product: true }
     });
 
     let totalMaterialCostConsumed = 0;
     let totalMaterialsConsumed = 0;
     materialLogs.forEach(log => {
       totalMaterialsConsumed += log.quantityUsed;
-      totalMaterialCostConsumed += log.quantityUsed * log.material.purchasePrice;
+      totalMaterialCostConsumed += log.quantityUsed * log.product.purchasePrice;
     });
 
     const damagedTools = await prisma.toolIssuance.count({
@@ -82,8 +82,8 @@ router.get('/inventory/:year/:month', async (req: AuthenticatedRequest, res: Res
 // GET /api/reports/sales/:year/:month
 router.get('/sales/:year/:month', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const year = parseInt(req.params.year, 10);
-    const month = parseInt(req.params.month, 10);
+    const year = parseInt(req.params.year as string, 10);
+    const month = parseInt(req.params.month as string, 10);
     const firmId = req.user!.firmId;
 
     const start = new Date(year, month - 1, 1);
@@ -121,7 +121,7 @@ router.get('/sales/:year/:month', async (req: AuthenticatedRequest, res: Respons
     const salesByDay = Object.keys(salesByDayMap).map(date => ({
       date,
       amount: salesByDayMap[date]
-    })).sort((a, b) => a.localeCompare(b));
+    })).sort((a, b) => a.date.localeCompare(b.date));
 
     res.json({ 
       success: true, 
@@ -144,8 +144,8 @@ router.get('/sales/:year/:month', async (req: AuthenticatedRequest, res: Respons
 // GET /api/reports/cashflow/:year/:month
 router.get('/cashflow/:year/:month', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
   try {
-    const year = parseInt(req.params.year, 10);
-    const month = parseInt(req.params.month, 10);
+    const year = parseInt(req.params.year as string, 10);
+    const month = parseInt(req.params.month as string, 10);
     const firmId = req.user!.firmId;
 
     const start = new Date(year, month - 1, 1);
@@ -163,9 +163,9 @@ router.get('/cashflow/:year/:month', async (req: AuthenticatedRequest, res: Resp
 
     const materialLogs = await prisma.materialUsageLog.findMany({
       where: { firmId, takenAt: { gte: start, lte: end } },
-      include: { material: true }
+      include: { product: true }
     });
-    const totalMaterialCostConsumed = materialLogs.reduce((sum, log) => sum + (log.quantityUsed * log.material.purchasePrice), 0);
+    const totalMaterialCostConsumed = materialLogs.reduce((sum, log) => sum + (log.quantityUsed * log.product.purchasePrice), 0);
 
     const totalExpenses = salaryExpenses + totalMaterialCostConsumed;
     const netCashflow = totalIncome - totalExpenses;
@@ -180,6 +180,81 @@ router.get('/cashflow/:year/:month', async (req: AuthenticatedRequest, res: Resp
       }, 
       message: 'Cashflow report fetched' 
     });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/reports/:id/approve
+router.post('/:id/approve', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const id = parseInt(req.params.id as string, 10);
+    
+    const existing = await prisma.performanceReport.findUnique({ where: { id } });
+    if (!existing) {
+      res.status(404).json({ success: false, data: null, message: 'Report not found' });
+      return;
+    }
+
+    const report = await prisma.performanceReport.update({
+      where: { id },
+      data: {
+        ownerApproved: true,
+        approvedById: req.user!.userId,
+        approvedAt: new Date()
+      }
+    });
+
+    res.json({ success: true, data: report, message: 'Report approved successfully' });
+  } catch (error) {
+    next(error);
+  }
+});
+
+// POST /api/reports/generate/:year/:month
+router.post('/generate/:year/:month', async (req: AuthenticatedRequest, res: Response, next: NextFunction): Promise<void> => {
+  try {
+    const year = parseInt(req.params.year as string, 10);
+    const month = parseInt(req.params.month as string, 10);
+    const firmId = req.user!.firmId;
+
+    const users = await prisma.user.findMany({ where: { firmId, isActive: true } });
+    
+    for (const user of users) {
+      const start = new Date(year, month - 1, 1);
+      const end = new Date(year, month, 0, 23, 59, 59);
+
+      const attendances = await prisma.attendance.findMany({
+        where: { userId: user.id, date: { gte: start, lte: end } }
+      });
+      
+      const totalPresent = attendances.filter(a => a.status === 'PRESENT').length;
+      const totalLateDays = attendances.filter(a => a.status === 'LATE').length;
+      const totalAbsent = attendances.filter(a => a.status === 'ABSENT').length;
+      const totalLateMinutes = attendances.reduce((sum, a) => sum + (a.lateMinutes || 0), 0);
+
+      const jobs = await prisma.jobCard.count({
+        where: { assignedEmployees: { some: { id: user.id } }, status: 'COMPLETED', createdAt: { gte: start, lte: end } }
+      });
+
+      const reportData = {
+        totalPresent,
+        totalLateDays,
+        totalAbsent,
+        totalLateMinutes,
+        jobsCompleted: jobs,
+        baseSalary: user.baseSalary,
+        finalSalary: user.baseSalary
+      };
+
+      await prisma.performanceReport.upsert({
+        where: { userId_month_year: { userId: user.id, month, year } },
+        create: { userId: user.id, month, year, firmId, ...reportData },
+        update: reportData
+      });
+    }
+
+    res.json({ success: true, message: 'All reports generated successfully' });
   } catch (error) {
     next(error);
   }

@@ -12,18 +12,18 @@ interface PageHeaderProps {
 
 export default function PageHeader({ title, subtitle, actionLabel, onAction }: PageHeaderProps) {
   return (
-    <div className="mb-8 flex items-end justify-between">
+    <div className="mb-8 flex items-center justify-between">
       <div>
-        <h2 className="text-3xl font-black uppercase tracking-tight text-white drop-shadow-md">{title}</h2>
+        <h2 className="text-2xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>{title}</h2>
         {subtitle && (
-          <p className="mt-1 text-[10px] font-bold uppercase tracking-widest text-slate-500">{subtitle}</p>
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-secondary)' }}>{subtitle}</p>
         )}
       </div>
       {actionLabel && onAction && (
         <button
           type="button"
           onClick={onAction}
-          className="btn btn-primary"
+          style={{ background: 'var(--color-brand-primary)', color: '#fff', border: 'none', borderRadius: '8px', padding: '8px 16px', fontSize: '14px', fontWeight: 500, cursor: 'pointer' }}
         >
           {actionLabel}
         </button>

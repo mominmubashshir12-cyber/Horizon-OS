@@ -41,6 +41,31 @@ async function main() {
   });
   console.log(`[Seed] Owner user created/ensured: ${adminUser.username} (${adminUser.fullName})`);
 
+  // 3. Create default Cashflow Categories
+  const categories = [
+    { name: 'Sales Revenue', type: 'INCOME', color: '#22c55e' },
+    { name: 'Service Income', type: 'INCOME', color: '#10b981' },
+    { name: 'Other Income', type: 'INCOME', color: '#06b6d4' },
+    { name: 'Salaries', type: 'EXPENSE', color: '#ef4444' },
+    { name: 'Materials', type: 'EXPENSE', color: '#f97316' },
+    { name: 'Rent', type: 'EXPENSE', color: '#eab308' },
+    { name: 'Utilities', type: 'EXPENSE', color: '#a855f7' },
+    { name: 'Transport', type: 'EXPENSE', color: '#3b82f6' },
+    { name: 'Miscellaneous', type: 'EXPENSE', color: '#64748b' }
+  ];
+
+  for (const cat of categories) {
+    const exists = await prisma.cashflowCategory.findFirst({
+      where: { name: cat.name, firmId: 1 }
+    });
+    if (!exists) {
+      await prisma.cashflowCategory.create({
+        data: { ...cat, isDefault: true, firmId: 1 }
+      });
+    }
+  }
+  console.log('[Seed] Default cashflow categories created/ensured.');
+
   console.log('[Seed] Seeding completed successfully.');
 }
 
