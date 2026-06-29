@@ -246,7 +246,7 @@ router.put('/:id/prices', authenticateToken, requireOwner, validateBody(updatePr
           entity: 'product_price',
           entityId: id,
           action: 'UPDATE',
-          payload: JSON.stringify({
+          payload: {
             old: {
               minSellingPrice: oldProduct.minSellingPrice,
               maxSellingPrice: oldProduct.maxSellingPrice,
@@ -256,7 +256,7 @@ router.put('/:id/prices', authenticateToken, requireOwner, validateBody(updatePr
             new: {
               minSellingPrice, maxSellingPrice, customerPrice, purchasePrice
             }
-          }),
+          },
           status: 'COMPLETED'
         }
       });
@@ -297,11 +297,11 @@ router.put('/:id/stock', authenticateToken, requireOwner, validateBody(updatePro
           entity: 'product_stock',
           entityId: id,
           action: 'UPDATE',
-          payload: JSON.stringify({
+          payload: {
             oldStock: oldProduct.currentStock,
             newStock,
             reason
-          }),
+          },
           status: 'COMPLETED'
         }
       });

@@ -10,7 +10,7 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
@@ -534,9 +534,7 @@ model Quotation {
   clientPhone        String?
   clientAddress      String?
   validityDays       Int       @default(30)
-  // CHANGED FROM String FOR POSTGRESQL — run `npx prisma migrate dev` and 
-  // `npx prisma generate` on the VPS after setting DATABASE_URL
-  items              String
+  items              Json
   subtotal           Float     @default(0)
   taxAmount          Float     @default(0)
   grandTotal         Float     @default(0)
@@ -588,9 +586,7 @@ model SyncLog {
   entity       String
   entityId     Int?
   action       String
-  // CHANGED FROM String FOR POSTGRESQL — run `npx prisma migrate dev` and 
-  // `npx prisma generate` on the VPS after setting DATABASE_URL
-  payload      String?
+  payload      Json?
   syncedAt     DateTime?
   status       String    @default("PENDING")
   errorMessage String?

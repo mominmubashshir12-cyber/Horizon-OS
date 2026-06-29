@@ -209,7 +209,7 @@ router.put('/:id', requireOwner, validateBody(updateMaterialSchema), async (req:
             entity: 'Product',
             entityId: material.id,
             action: 'STOCK_UPDATE',
-            payload: JSON.stringify({ oldStock: material.currentStock, newStock: currentStock }),
+            payload: { oldStock: material.currentStock, newStock: currentStock },
             status: 'COMPLETED',
             syncedAt: new Date()
           }

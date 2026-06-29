@@ -4,6 +4,13 @@ dist
 build
 .expo
 .env
+.env.local
 .DS_Store
 coverage
 *.log
+
+# Local SQLite database files (never commit — superseded by PostgreSQL in production)
+*.db
+*.db-journal
+prisma/dev.db
+backend/prisma/dev.db

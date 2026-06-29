@@ -134,7 +134,7 @@ router.post('/', validateBody(createQuotationSchema), async (req: AuthenticatedR
         clientPhone,
         clientAddress,
         validityDays,
-        items: JSON.stringify(processedItems),
+        items: processedItems,
         notes,
         assignedToId,
         subtotal,
@@ -229,7 +229,7 @@ router.put('/:id', validateBody(updateQuotationSchema), async (req: Authenticate
           productId: item.productId,
         };
       });
-      updateData.items = JSON.stringify(processedItems);
+      updateData.items = processedItems;
       updateData.subtotal = subtotal;
       updateData.taxAmount = taxAmount;
       updateData.grandTotal = subtotal + taxAmount;
@@ -341,7 +341,7 @@ router.get('/:id/pdf-data', async (req: AuthenticatedRequest, res: Response, nex
         firmAddress: firm?.address,
         firmPhone: firm?.phone,
         firmGstin: firm?.gstin,
-        items: JSON.parse(quotation.items),
+        items: quotation.items,
         totals: {
           subtotal: quotation.subtotal,
           taxAmount: quotation.taxAmount,
@@ -371,7 +371,7 @@ router.post('/:id/convert', requireOwner, async (req: AuthenticatedRequest, res:
       return;
     }
 
-    const items = JSON.parse(quotation.items);
+    const items = (quotation.items as any[]) || [];
     let firstSaleId: number | null = null;
 
     await prisma.$transaction(async (tx) => {
@@ -455,7 +455,7 @@ router.post('/:id/convert-to-job', requireOwner, async (req: AuthenticatedReques
     // items to string for equipmentNotes
     let notes = '';
     try {
-      const items = JSON.parse(quotation.items);
+      const items = (quotation.items as any[]) || [];
       notes = items.map((i: any) => `${i.qty}x ${i.desc}`).join('\n');
     } catch(e) {}
 
