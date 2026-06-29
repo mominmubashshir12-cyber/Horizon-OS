@@ -1,0 +1,1 @@
+config: set Railway production URLs for desktop and mobile
